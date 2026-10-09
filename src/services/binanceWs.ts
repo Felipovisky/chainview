@@ -12,6 +12,7 @@ const SYMBOL_TO_BINANCE: Record<string, string> = {
   near: 'nearusdt',
   dogecoin: 'dogeusdt',
   pepe: 'pepeusdt',
+  raydium: 'rayusdt',
 };
 
 export type PriceCallback = (updates: { [assetId: string]: number }) => void;
