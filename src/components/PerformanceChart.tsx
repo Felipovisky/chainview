@@ -109,10 +109,10 @@ export const PerformanceChart: React.FC = () => {
                 fontSize: '12px',
                 color: '#f8fafc',
               }}
-              formatter={(value: number, name: string) => [
-                `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`,
-                name.charAt(0).toUpperCase() + name.slice(1)
-              ]}
+            formatter={(value: any, name: any) => [
+  `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(2)}%`,
+  String(name).charAt(0).toUpperCase() + String(name).slice(1)
+]}
             />
             <Legend
               wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
