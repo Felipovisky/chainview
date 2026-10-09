@@ -109,14 +109,18 @@ export const PerformanceChart: React.FC = () => {
                 fontSize: '12px',
                 color: '#f8fafc',
               }}
-            formatter={(value: any, name: any) => [
-  `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(2)}%`,
-  String(name).charAt(0).toUpperCase() + String(name).slice(1)
-]}
+              formatter={(value: any, name: any) => {
+                const numValue = Number(value) || 0;
+                const strName = String(name || '');
+                return [
+                  `${numValue >= 0 ? '+' : ''}${numValue.toFixed(2)}%`,
+                  strName.charAt(0).toUpperCase() + strName.slice(1)
+                ];
+              }}
             />
             <Legend
               wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-              formatter={(value) => <span className="text-slate-400 capitalize">{value}</span>}
+              formatter={(value) => <span className="text-slate-400 capitalize">{String(value)}</span>}
             />
 
             {/* Linhas de cada Criptoativo */}
