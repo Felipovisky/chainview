@@ -12,7 +12,7 @@ import { initialTransactions } from './data/mockTransactions';
 import { fetchLivePrices } from './services/cryptoApi';
 import { connectBinancePrices } from './services/binanceWs';
 import type { CryptoAsset, Transaction } from './types/crypto';
-import { Search, RefreshCw, Plus } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 
 export default function App() {
   const [assets, setAssets] = useState<CryptoAsset[]>(() => {
@@ -31,7 +31,6 @@ export default function App() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('');
 
   useEffect(() => {
@@ -44,7 +43,6 @@ export default function App() {
 
   // Consulta manual ou periódica via CoinGecko para dados complementares (tendência e variações)
   const updatePrices = async () => {
-    setLoading(true);
     const coinIds = assets.map((a) => a.id);
     const livePrices = await fetchLivePrices(coinIds);
 
@@ -72,7 +70,6 @@ export default function App() {
       );
       setLastUpdated(new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     }
-    setLoading(false);
   };
 
   // Conexão em tempo real via WebSocket da Binance
@@ -215,132 +212,127 @@ export default function App() {
 
       <main className="flex-1 flex flex-col overflow-y-auto">
         {/* Barra Superior */}
-        <header className="h-20 border-b border-slate-800/80 flex items-center justify-between px-8 bg-[#0d1117]/90 backdrop-blur sticky top-0 z-10">
-          <div className="flex items-center gap-5">
-            <h1 className="text-xl font-bold tracking-tight text-white">Portfolio</h1>
-            <div className="relative">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Pesquisar ativos..."
-                className="bg-[#121824] border border-slate-800/80 rounded-lg pl-10 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition w-64 shadow-inner"
-              />
+        <header className="h-20 border-b border-slate-800/80 px-8 bg-[#0d1117]/90 backdrop-blur sticky top-0 z-10 flex items-center justify-center">
+          <div className="w-full max-w-7xl flex items-center justify-between">
+            <div className="flex items-center gap-5">
+              <h1 className="text-xl font-bold tracking-tight text-white">Portfolio</h1>
+              <div className="relative">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar ativos..."
+                  className="bg-[#121824] border border-slate-800/80 rounded-lg pl-10 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition w-64 shadow-inner"
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3.5">
-            {lastUpdated && (
-              <span className="text-xs text-slate-500 hidden sm:inline font-mono">
-                Atualizado às {lastUpdated}
-              </span>
-            )}
+            <div className="flex items-center gap-3.5">
+              {lastUpdated && (
+                <span className="text-xs text-slate-500 hidden sm:inline font-mono">
+                  Atualizado às {lastUpdated}
+                </span>
+              )}
 
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-semibold text-xs transition shadow-lg shadow-emerald-500/10 active:scale-95"
-            >
-              <Plus size={15} />
-              Novo Aporte
-            </button>
-
-            <button
-              onClick={updatePrices}
-              disabled={loading}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-surfaceLight border border-slate-800 text-xs font-medium text-slate-300 hover:text-white hover:border-slate-700 transition disabled:opacity-50"
-            >
-              <RefreshCw size={14} className={loading ? 'animate-spin text-emerald-400' : ''} />
-              {loading ? 'A atualizar...' : 'Atualizar'}
-            </button>
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-semibold text-xs transition shadow-lg shadow-emerald-500/10 active:scale-95"
+              >
+                <Plus size={15} />
+                Novo Aporte
+              </button>
+            </div>
           </div>
         </header>
 
-        {/* Dashboard */}
-        <section className="p-8 space-y-6 max-w-7xl">
-          {activeSelectedAsset ? (
-            <TransactionHistory
-              asset={activeSelectedAsset}
-              transactions={transactions}
-              onBack={() => setSelectedAsset(null)}
-              onOpenAddModal={() => setIsModalOpen(true)}
-              onDeleteTransaction={handleDeleteTransaction}
-              onEditTransaction={(tx) => {
-                setEditingTransaction(tx);
-                setIsEditModalOpen(true);
-              }}
-            />
-          ) : (
-            <>
-              {/* Métricas Principais com Sparklines e Datas */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard 
-                  title="Aportes" 
-                  value={`$${totalInvested.toFixed(2)}`}
-                  valueColor="text-white"
-                  sparklineData={[
-                    { date: '25/08', value: 74.66 },
-                    { date: '31/08', value: 74.66 },
-                    { date: '06/09', value: 74.66 },
-                    { date: '12/09', value: 140.00 },
-                    { date: '18/09', value: 140.00 },
-                    { date: '24/09', value: totalInvested }
-                  ]}
-                  chartColor="#f59e0b"
-                  chartType="stepAfter"
-                  idGradient="grad-aportes"
-                />
-                
-                <StatCard 
-                  title="Saldo" 
-                  value={`$${currentBalance.toFixed(2)}`} 
-                  valueColor="text-emerald-400 font-bold"
-                  sparklineData={[
-                    { date: '25/08', value: 70.00 },
-                    { date: '31/08', value: 71.20 },
-                    { date: '06/09', value: 72.50 },
-                    { date: '12/09', value: 145.00 },
-                    { date: '18/09', value: 160.00 },
-                    { date: '24/09', value: currentBalance }
-                  ]}
-                  chartColor="#10b981"
-                  chartType="monotone"
-                  idGradient="grad-saldo"
-                />
-                
-                <StatCard
-                  title="Lucro"
-                  value={`$${totalProfit.toFixed(2)}`}
-                  valueColor="text-emerald-400 font-bold"
-                  badge={`${profitPercentage >= 0 ? '+' : ''}${profitPercentage.toFixed(2)}%`}
-                  badgePositive={totalProfit >= 0}
-                  sparklineData={[
-                    { date: '25/08', value: 1.50 },
-                    { date: '31/08', value: -1.20 },
-                    { date: '06/09', value: 2.10 },
-                    { date: '12/09', value: 0.80 },
-                    { date: '18/09', value: 4.50 },
-                    { date: '24/09', value: totalProfit }
-                  ]}
-                  chartColor={totalProfit >= 0 ? "#10b981" : "#f43f5e"}
-                  chartType="monotone"
-                  idGradient="grad-lucro"
-                />
-              </div>
-
-              {/* Tabela de Moedas */}
-              <PortfolioTable
-                assets={assets}
-                onRemove={handleRemoveAsset}
-                onSelectAsset={(asset) => setSelectedAsset(asset)}
+        {/* Dashboard Centralizado */}
+        <div className="flex-1 flex justify-center w-full">
+          <section className="p-8 space-y-6 w-full max-w-7xl">
+            {activeSelectedAsset ? (
+              <TransactionHistory
+                asset={activeSelectedAsset}
+                transactions={transactions}
+                onBack={() => setSelectedAsset(null)}
+                onOpenAddModal={() => setIsModalOpen(true)}
+                onDeleteTransaction={handleDeleteTransaction}
+                onEditTransaction={(tx) => {
+                  setEditingTransaction(tx);
+                  setIsEditModalOpen(true);
+                }}
               />
+            ) : (
+              <>
+                {/* Métricas Principais com Sparklines e Datas */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <StatCard 
+                    title="Aportes" 
+                    value={`$${totalInvested.toFixed(2)}`}
+                    valueColor="text-white"
+                    sparklineData={[
+                      { date: '25/08', value: 74.66 },
+                      { date: '31/08', value: 74.66 },
+                      { date: '06/09', value: 74.66 },
+                      { date: '12/09', value: 140.00 },
+                      { date: '18/09', value: 140.00 },
+                      { date: '24/09', value: totalInvested }
+                    ]}
+                    chartColor="#f59e0b"
+                    chartType="stepAfter"
+                    idGradient="grad-aportes"
+                  />
+                  
+                  <StatCard 
+                    title="Saldo" 
+                    value={`$${currentBalance.toFixed(2)}`} 
+                    valueColor="text-emerald-400 font-bold"
+                    sparklineData={[
+                      { date: '25/08', value: 70.00 },
+                      { date: '31/08', value: 71.20 },
+                      { date: '06/09', value: 72.50 },
+                      { date: '12/09', value: 145.00 },
+                      { date: '18/09', value: 160.00 },
+                      { date: '24/09', value: currentBalance }
+                    ]}
+                    chartColor="#10b981"
+                    chartType="monotone"
+                    idGradient="grad-saldo"
+                  />
+                  
+                  <StatCard
+                    title="Lucro"
+                    value={`$${totalProfit.toFixed(2)}`}
+                    valueColor="text-emerald-400 font-bold"
+                    badge={`${profitPercentage >= 0 ? '+' : ''}${profitPercentage.toFixed(2)}%`}
+                    badgePositive={totalProfit >= 0}
+                    sparklineData={[
+                      { date: '25/08', value: 1.50 },
+                      { date: '31/08', value: -1.20 },
+                      { date: '06/09', value: 2.10 },
+                      { date: '12/09', value: 0.80 },
+                      { date: '18/09', value: 4.50 },
+                      { date: '24/09', value: totalProfit }
+                    ]}
+                    chartColor={totalProfit >= 0 ? "#10b981" : "#f43f5e"}
+                    chartType="monotone"
+                    idGradient="grad-lucro"
+                  />
+                </div>
 
-              {/* Distribuição e Gráficos */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <AllocationChart assets={assets} />
-                <PerformanceChart />
-              </div>
-            </>
-          )}
-        </section>
+                {/* Tabela de Moedas */}
+                <PortfolioTable
+                  assets={assets}
+                  onRemove={handleRemoveAsset}
+                  onSelectAsset={(asset) => setSelectedAsset(asset)}
+                />
+
+                {/* Distribuição e Gráficos */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <AllocationChart assets={assets} />
+                  <PerformanceChart />
+                </div>
+              </>
+            )}
+          </section>
+        </div>
       </main>
 
       {/* Modal de Criação */}

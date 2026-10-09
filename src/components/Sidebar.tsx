@@ -1,11 +1,11 @@
 import React from 'react';
-import { LayoutDashboard, Radar, TrendingUp, CircleDot, LineChart, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
   return (
     <aside className="w-64 bg-[#0d1117] border-r border-slate-800/80 flex flex-col justify-between p-4 h-screen select-none shrink-0">
       <div>
-        {/* Cabeçalho do Menu com respiro superior alinhado */}
+        {/* Cabeçalho do Menu */}
         <div className="flex items-center gap-3 px-3 pt-3 pb-6 mb-3 border-b border-slate-800/40">
           <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg shadow-inner">
             ⚡
@@ -17,22 +17,6 @@ export const Sidebar: React.FC = () => {
           <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-emerald-500/10 text-emerald-400 font-medium">
             <LayoutDashboard size={18} />
             Portfolio
-          </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">
-            <Radar size={18} />
-            Radar
-          </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">
-            <TrendingUp size={18} />
-            Stocks
-          </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">
-            <CircleDot size={18} />
-            Bubbles
-          </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition">
-            <LineChart size={18} />
-            Análise Técnica
           </a>
         </nav>
       </div>
