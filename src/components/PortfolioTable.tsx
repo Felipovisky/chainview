@@ -66,7 +66,8 @@ export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsse
                   </td>
 
                   <td className="px-6 py-4 text-right">${asset.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                  <td className="px-6 py-4 text-right">{asset.quantity}</td>
+                  {/* Linha da quantidade corrigida para max de 5 casas decimais */}
+                  <td className="px-6 py-4 text-right">{asset.quantity.toLocaleString('en-US', { maximumFractionDigits: 5 })}</td>
                   <td className="px-6 py-4 text-right">${asset.investedAmount.toFixed(2)}</td>
                   <td className="px-6 py-4 text-right font-semibold text-white">${currentBalance.toFixed(2)}</td>
                   <td className="px-6 py-4 text-right text-amber-400/90">${avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
