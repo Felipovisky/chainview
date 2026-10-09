@@ -54,7 +54,8 @@ const AVAILABLE_COINS = [
   { id: 'stacks', name: 'Stacks', symbol: 'STX' },
   { id: 'filecoin', name: 'Filecoin', symbol: 'FIL' },
   { id: 'flow', name: 'Flow', symbol: 'FLOW' },
-  { id: 'raydium', name: 'Raydium', symbol: 'RAY' }
+  { id: 'raydium', name: 'Raydium', symbol: 'RAY' },
+  { id: 'layerzero', name: 'LayerZero', symbol: 'ZRO' }
 ];
 
 interface Props {
