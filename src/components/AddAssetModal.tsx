@@ -53,7 +53,7 @@ const AVAILABLE_COINS = [
   { id: 'pyth-network', name: 'Pyth Network', symbol: 'PYTH' },
   { id: 'stacks', name: 'Stacks', symbol: 'STX' },
   { id: 'filecoin', name: 'Filecoin', symbol: 'FIL' },
-  { id: 'flow', name: 'Flow', symbol: 'FLOW' }
+  { id: 'flow', name: 'Flow', symbol: 'FLOW' },
   { id: 'raydium', name: 'Raydium', symbol: 'RAY' }
 ];
 
