@@ -14,6 +14,7 @@ const SYMBOL_TO_BINANCE: Record<string, string> = {
   pepe: 'pepeusdt',
   raydium: 'rayusdt',
   layerzero: 'zrousdt',
+  eigen: 'eigenusdt',
 };
 
 export type PriceCallback = (updates: { [assetId: string]: number }) => void;

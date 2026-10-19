@@ -56,6 +56,7 @@ const AVAILABLE_COINS = [
   { id: 'flow', name: 'Flow', symbol: 'FLOW' },
   { id: 'raydium', name: 'Raydium', symbol: 'RAY' },
   { id: 'layerzero', name: 'LayerZero', symbol: 'ZRO' },
+  { id: 'eigen', symbol: 'EIGEN', name: 'EigenLayer' },
 ];
 
 interface Props {
