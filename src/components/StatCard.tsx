@@ -16,13 +16,14 @@ export interface SparklinePoint {
 interface StatCardProps {
   title: string;
   value: string;
-  valueColor?: string; // Cor personalizada do valor (ex: verde para Saldo e Lucro)
+  valueColor?: string;
   badge?: string;
   badgePositive?: boolean;
   sparklineData?: SparklinePoint[];
   chartColor?: string;
   chartType?: 'monotone' | 'stepAfter';
   idGradient?: string;
+  isPrivacyMode?: boolean; // <-- Nova propriedade adicionada
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -35,6 +36,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   chartColor = '#10b981',
   chartType = 'monotone',
   idGradient = 'grad-default',
+  isPrivacyMode = false, // <-- Padrão como falso para não esconder acidentalmente
 }) => {
   return (
     <div className="bg-[#121824] border border-slate-800/80 rounded-xl p-5 flex flex-col justify-between shadow-sm min-h-[170px]">
@@ -42,7 +44,10 @@ export const StatCard: React.FC<StatCardProps> = ({
       <div>
         <span className="text-slate-400 text-xs font-medium tracking-wide">{title}</span>
         <div className="flex items-center gap-2.5 mt-2">
-          <span className={`text-2xl font-bold tracking-tight ${valueColor}`}>{value}</span>
+          {/* Máscara aplicada ao valor principal */}
+          <span className={`text-2xl font-bold tracking-tight ${valueColor}`}>
+            {isPrivacyMode ? '****' : value}
+          </span>
           {badge && (
             <span
               className={`text-xs font-semibold px-2 py-0.5 rounded ${
@@ -51,7 +56,8 @@ export const StatCard: React.FC<StatCardProps> = ({
                   : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
               }`}
             >
-              {badge}
+              {/* Máscara aplicada ao badge de percentagem */}
+              {isPrivacyMode ? '***' : badge}
             </span>
           )}
         </div>

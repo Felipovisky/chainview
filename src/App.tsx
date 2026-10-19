@@ -12,7 +12,7 @@ import { initialTransactions } from './data/mockTransactions';
 import { fetchLivePrices } from './services/cryptoApi';
 import { connectBinancePrices } from './services/binanceWs';
 import type { CryptoAsset, Transaction } from './types/crypto';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Eye, EyeOff } from 'lucide-react';
 
 export default function App() {
   const [assets, setAssets] = useState<CryptoAsset[]>(() => {
@@ -33,6 +33,12 @@ export default function App() {
 
   const [lastUpdated, setLastUpdated] = useState<string>('');
 
+  // Estado do Modo Privacidade
+  const [isPrivacyMode, setIsPrivacyMode] = useState(() => {
+    const saved = localStorage.getItem('crypto_portfolio_privacy');
+    return saved ? JSON.parse(saved) : false;
+  });
+
   useEffect(() => {
     localStorage.setItem('crypto_portfolio_assets', JSON.stringify(assets));
   }, [assets]);
@@ -40,6 +46,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('crypto_portfolio_transactions', JSON.stringify(transactions));
   }, [transactions]);
+
+  // Salva o Modo Privacidade sempre que for alterado
+  useEffect(() => {
+    localStorage.setItem('crypto_portfolio_privacy', JSON.stringify(isPrivacyMode));
+  }, [isPrivacyMode]);
 
   // Consulta manual ou periódica via CoinGecko para dados complementares (tendência e variações)
   const updatePrices = async () => {
@@ -233,6 +244,15 @@ export default function App() {
                 </span>
               )}
 
+              {/* Botão de Privacidade */}
+              <button
+                onClick={() => setIsPrivacyMode(!isPrivacyMode)}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-lg transition"
+                title={isPrivacyMode ? "Mostrar Valores" : "Ocultar Valores"}
+              >
+                {isPrivacyMode ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+
               <button
                 onClick={() => setIsModalOpen(true)}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-semibold text-xs transition shadow-lg shadow-emerald-500/10 active:scale-95"
@@ -267,6 +287,7 @@ export default function App() {
                     title="Aportes" 
                     value={`$${totalInvested.toFixed(2)}`}
                     valueColor="text-white"
+                    isPrivacyMode={isPrivacyMode}
                     sparklineData={[
                       { date: '25/08', value: 74.66 },
                       { date: '31/08', value: 74.66 },
@@ -284,6 +305,7 @@ export default function App() {
                     title="Saldo" 
                     value={`$${currentBalance.toFixed(2)}`} 
                     valueColor="text-emerald-400 font-bold"
+                    isPrivacyMode={isPrivacyMode}
                     sparklineData={[
                       { date: '25/08', value: 70.00 },
                       { date: '31/08', value: 71.20 },
@@ -303,6 +325,7 @@ export default function App() {
                     valueColor="text-emerald-400 font-bold"
                     badge={`${profitPercentage >= 0 ? '+' : ''}${profitPercentage.toFixed(2)}%`}
                     badgePositive={totalProfit >= 0}
+                    isPrivacyMode={isPrivacyMode}
                     sparklineData={[
                       { date: '25/08', value: 1.50 },
                       { date: '31/08', value: -1.20 },
