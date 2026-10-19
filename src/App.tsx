@@ -210,7 +210,7 @@ export default function App() {
     <div className="flex h-screen bg-[#0b0e14] overflow-hidden text-slate-100 font-sans">
       <Sidebar />
 
-      <main className="flex-1 flex flex-col overflow-y-auto">
+      <main className="flex-1 overflow-y-auto bg-[#0b0e14]">
         {/* Barra Superior */}
         <header className="h-20 border-b border-slate-800/80 px-8 bg-[#0d1117]/90 backdrop-blur sticky top-0 z-10 flex items-center justify-center">
           <div className="w-full max-w-7xl flex items-center justify-between">
