@@ -8,13 +8,21 @@ interface Props {
 export const AllocationChart: React.FC<Props> = ({ assets }) => {
   const totalBalance = assets.reduce((acc, curr) => acc + curr.quantity * curr.currentPrice, 0);
 
+  // Ordena os ativos pelo valor total em carteira (do maior para o menor)
+  const sortedAssets = [...assets].sort((a, b) => {
+    const balanceA = a.quantity * a.currentPrice;
+    const balanceB = b.quantity * b.currentPrice;
+    return balanceB - balanceA;
+  });
+
   const colors = ['bg-amber-500', 'bg-indigo-500', 'bg-sky-400', 'bg-pink-500', 'bg-emerald-500'];
 
   return (
     <div className="bg-[#121824] border border-slate-800/80 rounded-xl p-5 shadow-sm">
       <h3 className="text-sm font-semibold text-white mb-4">Distribuição</h3>
       <div className="space-y-3 font-sans">
-        {assets.map((asset, index) => {
+        {/* Passamos a usar o sortedAssets aqui em vez de apenas assets */}
+        {sortedAssets.map((asset, index) => {
           const balance = asset.quantity * asset.currentPrice;
           const percentage = totalBalance > 0 ? (balance / totalBalance) * 100 : 0;
           const color = colors[index % colors.length];
