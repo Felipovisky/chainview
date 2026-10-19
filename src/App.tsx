@@ -112,43 +112,91 @@ export default function App() {
     };
   }, [assets.length]);
 
-  const handleAddAsset = async (newEntry: Omit<CryptoAsset, 'currentPrice' | 'trend'>) => {
-    const priceData = await fetchLivePrices([newEntry.id]);
-    const currentPrice = priceData?.[newEntry.id]?.usd ?? (newEntry.investedAmount / newEntry.quantity);
+  const handleAddAsset = async (
+    newEntry: Omit<CryptoAsset, 'currentPrice' | 'trend'>, 
+    type: 'Compra' | 'Venda' | 'Troca', 
+    transactionDate: string,
+    targetEntry?: Omit<CryptoAsset, 'currentPrice' | 'trend'>
+  ) => {
+    // Formata a data (YYYY-MM-DD) para (DD/MM/YYYY)
+    const [year, month, day] = transactionDate.split('-');
+    const formattedDate = `${day}/${month}/${year}`;
 
-    const newTx: Transaction = {
-      id: `tx-${Date.now()}`,
-      assetId: newEntry.id,
-      type: 'Compra',
-      date: new Date().toLocaleDateString('pt-BR'),
-      amount: newEntry.investedAmount,
-      priceAtDate: currentPrice,
-      quantity: newEntry.quantity,
-      wallet: 'Sem Carteira',
-    };
-    setTransactions((prev) => [newTx, ...prev]);
+    if (type === 'Troca' && targetEntry) {
+      // 1. LÓGICA DE SWAP (TROCA) - Processa 2 moedas ao mesmo tempo
+      const priceData = await fetchLivePrices([newEntry.id, targetEntry.id]);
+      const currentPriceOut = priceData?.[newEntry.id]?.usd ?? (newEntry.investedAmount / newEntry.quantity);
+      const currentPriceIn = priceData?.[targetEntry.id]?.usd ?? (targetEntry.investedAmount / targetEntry.quantity);
 
-    setAssets((prev) => {
-      const existingIndex = prev.findIndex((a) => a.id === newEntry.id);
-      if (existingIndex >= 0) {
-        const existing = prev[existingIndex];
-        const updatedList = [...prev];
-        updatedList[existingIndex] = {
-          ...existing,
-          quantity: existing.quantity + newEntry.quantity,
-          investedAmount: existing.investedAmount + newEntry.investedAmount,
-          currentPrice: currentPrice > 0 ? currentPrice : existing.currentPrice,
-        };
+      const txOut: Transaction = {
+        id: `tx-out-${Date.now()}`, assetId: newEntry.id, type: 'Venda', date: formattedDate, amount: newEntry.investedAmount, priceAtDate: currentPriceOut, quantity: newEntry.quantity, wallet: 'Swap',
+      };
+      const txIn: Transaction = {
+        id: `tx-in-${Date.now()}`, assetId: targetEntry.id, type: 'Compra', date: formattedDate, amount: targetEntry.investedAmount, priceAtDate: currentPriceIn, quantity: targetEntry.quantity, wallet: 'Swap',
+      };
+
+      setTransactions((prev) => [txIn, txOut, ...prev]);
+
+      setAssets((prev) => {
+        let updatedList = [...prev];
+        
+        // Subtrai a Moeda Vendida (Saída)
+        const outIndex = updatedList.findIndex((a) => a.id === newEntry.id);
+        if (outIndex >= 0) {
+          updatedList[outIndex] = {
+            ...updatedList[outIndex],
+            quantity: Math.max(0, updatedList[outIndex].quantity - newEntry.quantity),
+            investedAmount: Math.max(0, updatedList[outIndex].investedAmount - newEntry.investedAmount),
+            currentPrice: currentPriceOut > 0 ? currentPriceOut : updatedList[outIndex].currentPrice,
+          };
+        }
+
+        // Soma a Moeda Comprada (Entrada)
+        const inIndex = updatedList.findIndex((a) => a.id === targetEntry.id);
+        if (inIndex >= 0) {
+          updatedList[inIndex] = {
+            ...updatedList[inIndex],
+            quantity: updatedList[inIndex].quantity + targetEntry.quantity,
+            investedAmount: updatedList[inIndex].investedAmount + targetEntry.investedAmount,
+            currentPrice: currentPriceIn > 0 ? currentPriceIn : updatedList[inIndex].currentPrice,
+          };
+        } else {
+          updatedList.push({
+            ...targetEntry, currentPrice: currentPriceIn > 0 ? currentPriceIn : 0, trend: 'Estável',
+          });
+        }
         return updatedList;
-      } else {
-        const newAsset: CryptoAsset = {
-          ...newEntry,
-          currentPrice,
-          trend: 'Estável',
-        };
-        return [...prev, newAsset];
-      }
-    });
+      });
+
+    } else {
+      // 2. LÓGICA NORMAL DE COMPRA E VENDA (1 moeda)
+      const priceData = await fetchLivePrices([newEntry.id]);
+      const currentPrice = priceData?.[newEntry.id]?.usd ?? (newEntry.investedAmount / newEntry.quantity);
+
+      const newTx: Transaction = {
+        id: `tx-${Date.now()}`, assetId: newEntry.id, type: type as 'Compra' | 'Venda', date: formattedDate, amount: newEntry.investedAmount, priceAtDate: currentPrice, quantity: newEntry.quantity, wallet: 'Sem Carteira',
+      };
+      
+      setTransactions((prev) => [newTx, ...prev]);
+
+      setAssets((prev) => {
+        const existingIndex = prev.findIndex((a) => a.id === newEntry.id);
+        if (existingIndex >= 0) {
+          const existing = prev[existingIndex];
+          const updatedList = [...prev];
+          const newQuantity = type === 'Compra' ? existing.quantity + newEntry.quantity : Math.max(0, existing.quantity - newEntry.quantity);
+          const newInvested = type === 'Compra' ? existing.investedAmount + newEntry.investedAmount : Math.max(0, existing.investedAmount - newEntry.investedAmount);
+
+          updatedList[existingIndex] = {
+            ...existing, quantity: newQuantity, investedAmount: newInvested, currentPrice: currentPrice > 0 ? currentPrice : existing.currentPrice,
+          };
+          return updatedList;
+        } else {
+          const newAsset: CryptoAsset = { ...newEntry, currentPrice, trend: 'Estável' };
+          return [...prev, newAsset];
+        }
+      });
+    }
   };
 
   const handleSaveEditedTransaction = (updatedTx: Transaction) => {
@@ -162,13 +210,13 @@ export default function App() {
       prev.map((asset) => {
         if (asset.id === updatedTx.assetId) {
           const assetTxs = updatedTransactions.filter((t) => t.assetId === asset.id);
-          const totalQty = assetTxs.reduce((sum, t) => sum + t.quantity, 0);
-          const totalInvestedAmount = assetTxs.reduce((sum, t) => sum + t.amount, 0);
+          const totalQty = assetTxs.reduce((sum, t) => sum + (t.type === 'Compra' ? t.quantity : -t.quantity), 0);
+          const totalInvestedAmount = assetTxs.reduce((sum, t) => sum + (t.type === 'Compra' ? t.amount : -t.amount), 0);
 
           return {
             ...asset,
-            quantity: totalQty,
-            investedAmount: totalInvestedAmount,
+            quantity: Math.max(0, totalQty),
+            investedAmount: Math.max(0, totalInvestedAmount),
           };
         }
         return asset;
@@ -187,12 +235,12 @@ export default function App() {
       prev.map((asset) => {
         if (asset.id === txToDelete.assetId) {
           const assetTxs = remainingTransactions.filter((t) => t.assetId === asset.id);
-          const totalQty = assetTxs.reduce((sum, t) => sum + t.quantity, 0);
-          const totalInvestedAmount = assetTxs.reduce((sum, t) => sum + t.amount, 0);
+          const totalQty = assetTxs.reduce((sum, t) => sum + (t.type === 'Compra' ? t.quantity : -t.quantity), 0);
+          const totalInvestedAmount = assetTxs.reduce((sum, t) => sum + (t.type === 'Compra' ? t.amount : -t.amount), 0);
           return {
             ...asset,
-            quantity: totalQty,
-            investedAmount: totalInvestedAmount,
+            quantity: Math.max(0, totalQty),
+            investedAmount: Math.max(0, totalInvestedAmount),
           };
         }
         return asset;
@@ -253,12 +301,12 @@ export default function App() {
                 {isPrivacyMode ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
 
-              <button
+             <button
                 onClick={() => setIsModalOpen(true)}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-semibold text-xs transition shadow-lg shadow-emerald-500/10 active:scale-95"
               >
                 <Plus size={15} />
-                Novo Aporte
+                Nova Transação
               </button>
             </div>
           </div>
