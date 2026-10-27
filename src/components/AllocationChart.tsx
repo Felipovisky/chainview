@@ -6,34 +6,57 @@ interface Props {
 }
 
 export const AllocationChart: React.FC<Props> = ({ assets }) => {
-  const totalBalance = assets.reduce((acc, curr) => acc + curr.quantity * curr.currentPrice, 0);
+  const validAssets = assets.filter(a => a.quantity > 0 && a.currentPrice > 0);
+  
+  const totalBalance = validAssets.reduce((acc, curr) => acc + (curr.quantity * curr.currentPrice), 0);
+  const sortedAssets = [...validAssets].sort((a, b) => 
+    (b.quantity * b.currentPrice) - (a.quantity * a.currentPrice)
+  );
 
-  const colors = ['bg-amber-500', 'bg-indigo-500', 'bg-sky-400', 'bg-pink-500', 'bg-emerald-500'];
+  const chartData = sortedAssets.map(asset => {
+    const val = asset.quantity * asset.currentPrice;
+    const pct = totalBalance > 0 ? ((val / totalBalance) * 100).toFixed(1) : '0.0';
+    return {
+      name: asset.symbol,
+      percentStr: `${pct}%`
+    };
+  });
+
+  const COLORS = [
+    '#f59e0b', '#3b82f6', '#10b981', '#a855f7', 
+    '#f43f5e', '#06b6d4', '#6366f1', '#d946ef',
+    '#84cc16', '#f97316', '#14b8a6', '#ec4899',
+    '#eab308', '#2dd4bf', '#fb7185'
+  ];
 
   return (
-    <div className="bg-[#121824] border border-slate-800/80 rounded-xl p-5 shadow-sm">
-      <h3 className="text-sm font-semibold text-white mb-4">Distribuição</h3>
-      <div className="space-y-3 font-sans">
-        {assets.map((asset, index) => {
-          const balance = asset.quantity * asset.currentPrice;
-          const percentage = totalBalance > 0 ? (balance / totalBalance) * 100 : 0;
-          const color = colors[index % colors.length];
-
-          return (
-            <div key={asset.id} className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-300 font-medium">{asset.name}</span>
-                <span className="text-slate-400 font-mono">${balance.toFixed(2)} ({percentage.toFixed(2)}%)</span>
+    <div className="bg-[#121824] border border-slate-800/80 rounded-xl p-6 flex flex-col h-[620px] shadow-lg">
+      <h3 className="text-sm font-bold text-white mb-6 uppercase tracking-wider">Distribuição (%)</h3>
+      
+      <div className="flex-1 overflow-y-auto pr-2">
+        {chartData.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-xs text-slate-500">Sem ativos</div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            {chartData.map((entry, index) => (
+              <div 
+                key={entry.name} 
+                className="flex items-center gap-2 bg-[#0b0e14] border border-slate-800/60 rounded-lg px-3 py-2.5 hover:border-slate-700 transition-colors"
+              >
+                <div 
+                  className="w-2.5 h-2.5 rounded-full shrink-0" 
+                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                ></div>
+                <span className="text-xs font-bold text-slate-300 truncate" title={entry.name}>
+                  {entry.name}
+                </span>
+                <span className="text-xs font-bold text-slate-500 ml-auto">
+                  {entry.percentStr}
+                </span>
               </div>
-              <div className="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${color}`}
-                  style={{ width: `${percentage}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
