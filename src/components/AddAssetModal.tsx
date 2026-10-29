@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Search, Check, ChevronDown, Loader2, ArrowRight } from 'lucide-react';
+import { X, Search, Check, ChevronDown, Loader2, ArrowRight, ArrowLeftRight } from 'lucide-react';
 import type { CryptoAsset } from '../types/crypto';
 
 interface Props {
