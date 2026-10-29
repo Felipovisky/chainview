@@ -1,5 +1,5 @@
-import React from 'react';
-import { Trash2, TrendingUp, TrendingDown, Minus, BarChart3, Edit2, ArrowLeftRight, Zap, Target, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trash2, TrendingUp, TrendingDown, Minus, BarChart3, Edit2, ArrowLeftRight, Zap, Target, ShieldAlert, Clock } from 'lucide-react';
 import type { CryptoAsset } from '../types/crypto';
 
 interface Props {
@@ -10,7 +10,18 @@ interface Props {
   onSwapAsset?: (asset: CryptoAsset) => void;
 }
 
+type Timeframe = '24h' | '7d' | '30d' | '1y';
+
 export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsset, onEditAsset, onSwapAsset }) => {
+  const [timeframe, setTimeframe] = useState<Timeframe>(() => {
+    const saved = localStorage.getItem('chainview_table_timeframe');
+    return (saved as Timeframe) || '24h';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('chainview_table_timeframe', timeframe);
+  }, [timeframe]);
+
   const safeNum = (val: any) => {
     const num = Number(val);
     return isNaN(num) ? 0 : num;
@@ -20,39 +31,34 @@ export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsse
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(safeNum(value));
   };
 
-  // Motor Tático Algorítmico
-  const generateSignal = (asset: CryptoAsset, profitPercentage: number) => {
-    // Exclui stablecoins do sinal de risco
+  const generateSignal = (asset: CryptoAsset, profitPercentage: number, tf: Timeframe, changePercentage: number) => {
     if (['USDT', 'USDC', 'DAI'].includes(asset.symbol.toUpperCase())) {
       return { text: 'CAIXA', color: 'text-slate-400 bg-slate-800/50 border-slate-700', icon: ShieldAlert };
     }
 
-    const change24h = safeNum(asset.athChange);
+    const thresholds = {
+      '24h': { dipForte: -7, dipNormal: -2, euforia: 10, lucroAlvo: 20, lucroParcial: 10 },
+      '7d':  { dipForte: -15, dipNormal: -5, euforia: 25, lucroAlvo: 30, lucroParcial: 15 },
+      '30d': { dipForte: -30, dipNormal: -10, euforia: 50, lucroAlvo: 50, lucroParcial: 25 },
+      '1y':  { dipForte: -60, dipNormal: -30, euforia: 200, lucroAlvo: 100, lucroParcial: 50 },
+    }[tf];
 
-    // Regra 1: Euforia Extrema (Realizar Lucros)
-    // Se subiu mais de 10% nas últimas 24h E o seu lucro total é superior a 20%, VENDER!
-    if (change24h > 10 && profitPercentage > 20) {
+    if (changePercentage > thresholds.euforia && profitPercentage > thresholds.lucroAlvo) {
       return { text: 'VENDA FORTE', color: 'text-amber-400 bg-amber-400/10 border-amber-500/30', icon: Target };
     }
     
-    // Regra 2: Realização Parcial (Venda Padrão)
-    if (change24h > 5 && profitPercentage > 10) {
+    if (changePercentage > (thresholds.euforia / 2) && profitPercentage > thresholds.lucroParcial) {
       return { text: 'REALIZAR LUCRO', color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', icon: Target };
     }
 
-    // Regra 3: Compra Forte ("Buy the Dip")
-    // Se o mercado sangrou mais de 7% num dia (Pullback forte), é hora de comprar com desconto.
-    if (change24h < -7) {
+    if (changePercentage < thresholds.dipForte) {
       return { text: 'COMPRA FORTE', color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.2)]', icon: Zap };
     }
 
-    // Regra 4: Acumulação Segura
-    // Correção leve com preço a consolidar
-    if (change24h < -2) {
+    if (changePercentage < thresholds.dipNormal) {
       return { text: 'COMPRA', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30', icon: Zap };
     }
 
-    // Regra 5: Aguardar
     return { text: 'AGUARDAR', color: 'text-slate-400 bg-slate-800/50 border-slate-700', icon: Minus };
   };
 
@@ -66,6 +72,28 @@ export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsse
 
   return (
     <div className="bg-[#121824] rounded-xl border border-slate-800/80 overflow-hidden shadow-lg">
+      
+      <div className="bg-[#0b0e14] border-b border-slate-800/80 p-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider">
+          <Clock size={14} className="text-indigo-400" /> Horizonte dos Sinais Táticos
+        </div>
+        <div className="flex bg-[#121824] p-1 rounded-lg border border-slate-800">
+          {(['24h', '7d', '30d', '1y'] as Timeframe[]).map((tf) => (
+            <button
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
+                timeframe === tf 
+                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {tf === '24h' ? 'HOJE' : tf === '7d' ? '7 DIAS' : tf === '30d' ? '1 MÊS' : '1 ANO'}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-[#0b0e14] text-xs uppercase text-slate-500 border-b border-slate-800/80 font-bold tracking-wider">
@@ -75,7 +103,7 @@ export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsse
               <th className="py-4 px-4 text-right">Saldo</th>
               <th className="py-4 px-4 text-right hidden sm:table-cell">Total / Preço Médio</th>
               <th className="py-4 px-4 text-right">Rentabilidade</th>
-              <th className="py-4 px-4 text-center">Tendência</th>
+              <th className="py-4 px-4 text-center">Variação ({timeframe})</th>
               <th className="py-4 px-4 text-center text-indigo-400 bg-indigo-500/5">Sinal</th>
               <th className="py-4 px-4 text-right">Ações</th>
             </tr>
@@ -94,7 +122,14 @@ export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsse
               const isProfit = profitLoss > 0;
               const isNeutral = Math.abs(profitLoss) < 0.01;
 
-              const signal = generateSignal(asset, profitLossPercentage);
+              const changePercentage = safeNum(
+                timeframe === '24h' ? asset.change24h : 
+                timeframe === '7d' ? asset.change7d : 
+                timeframe === '30d' ? asset.change30d : 
+                asset.change1y
+              );
+              
+              const signal = generateSignal(asset, profitLossPercentage, timeframe, changePercentage);
               const SignalIcon = signal.icon;
 
               return (
@@ -136,20 +171,18 @@ export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsse
                   </td>
                   
                   <td className="py-4 px-4 text-center">
-                    <div className={`inline-flex items-center justify-center gap-1 text-[10px] px-2 py-1 rounded border font-bold uppercase w-24
-                      ${asset.trend?.includes('Alta') ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 
-                        asset.trend === 'Baixa' ? 'text-rose-400 bg-rose-500/10 border-rose-500/20' : 
+                    <div className={`inline-flex items-center justify-center gap-1 text-xs px-2 py-1.5 rounded border font-bold w-24 transition-colors
+                      ${changePercentage > 0 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 
+                        changePercentage < 0 ? 'text-rose-400 bg-rose-500/10 border-rose-500/20' : 
                         'text-slate-400 bg-slate-800/50 border-slate-700'}`}
                     >
-                      {asset.trend?.includes('Alta') ? <TrendingUp size={12} /> : 
-                       asset.trend === 'Baixa' ? <TrendingDown size={12} /> : 
-                       <Minus size={12} />}
-                      {asset.trend}
+                      {changePercentage > 0 ? <TrendingUp size={12} /> : changePercentage < 0 ? <TrendingDown size={12} /> : <Minus size={12} />}
+                      {changePercentage > 0 ? '+' : ''}{changePercentage.toFixed(2)}%
                     </div>
                   </td>
 
                   <td className="py-4 px-4 text-center bg-indigo-500/5">
-                    <div className={`inline-flex items-center justify-center gap-1.5 text-[10px] px-2.5 py-1.5 rounded-md border font-black uppercase tracking-wider w-full ${signal.color}`}>
+                    <div className={`inline-flex items-center justify-center gap-1.5 text-[10px] px-2.5 py-1.5 rounded-md border font-black uppercase tracking-wider w-full transition-colors ${signal.color}`}>
                       <SignalIcon size={12} className="shrink-0" />
                       {signal.text}
                     </div>

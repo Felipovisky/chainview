@@ -97,29 +97,42 @@ export default function App() {
     return newAssets;
   };
 
-  const updatePrices = async () => {
+    const updatePrices = async () => {
     try {
       const coinIds = assets.map((a) => a.id);
       if (coinIds.length === 0) return;
-      const livePrices = await fetchLivePrices(coinIds);
-      if (livePrices) {
+      
+      // 1. Alteração: Adicionar ',1y' no final da URL
+      const res = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinIds.join(',')}&price_change_percentage=24h,7d,30d,1y`);
+      const data = await res.json();
+      
+      if (data && Array.isArray(data)) {
         setAssets((prev) => prev.map((asset) => {
-          const coinData = livePrices[asset.id];
-          if (coinData && coinData.usd !== undefined) {
-            const price = safeNum(coinData.usd);
-            const change24h = safeNum(coinData.usd_24h_change);
+          const coinData = data.find((c: any) => c.id === asset.id);
+          if (coinData) {
+            const price = safeNum(coinData.current_price);
+            const change24 = safeNum(coinData.price_change_percentage_24h_in_currency || coinData.price_change_percentage_24h);
+            const change7 = safeNum(coinData.price_change_percentage_7d_in_currency);
+            const change30 = safeNum(coinData.price_change_percentage_30d_in_currency);
+            
+            // 2. Alteração: Capturar o dado de 1 ano
+            const change1ano = safeNum(coinData.price_change_percentage_1y_in_currency);
+            
             return { 
               ...asset, 
               currentPrice: price, 
-              trend: change24h > 5 ? 'Alta Forte' : change24h > 0 ? 'Alta' : 'Baixa',
-              athChange: change24h // Adicionado para alimentar o Motor de Sinais na PortfolioTable
+              trend: change24 > 5 ? 'Alta Forte' : change24 > 0 ? 'Alta' : 'Baixa',
+              change24h: change24,
+              change7d: change7,
+              change30d: change30,
+              change1y: change1ano // Injetar o dado no ativo
             };
           }
           return asset;
         }));
         setLastUpdated(new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       }
-    } catch (e) { console.warn("Erro API", e); }
+    } catch (e) { console.warn("Erro API Mercado", e); }
   };
 
   useEffect(() => {

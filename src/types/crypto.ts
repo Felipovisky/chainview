@@ -6,7 +6,10 @@ export interface CryptoAsset {
   investedAmount: number;
   currentPrice: number;
   trend?: string;
-  athChange?: number; // Nova propriedade para o desconto histórico
+  change24h?: number;
+  change7d?: number;
+  change30d?: number;
+  change1y?: number;
 }
 
 export interface Transaction {
