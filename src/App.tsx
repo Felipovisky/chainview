@@ -8,6 +8,7 @@ import { MarketIndicators } from './components/MarketIndicators';
 import { PortfolioStrategy } from './components/PortfolioStrategy';
 import { AddAssetModal } from './components/AddAssetModal';
 import { EditTransactionModal } from './components/EditTransactionModal';
+import { EditAssetModal } from './components/EditAssetModal';
 import { TransactionHistory } from './components/TransactionHistory';
 import { fetchLivePrices } from './services/cryptoApi';
 import type { CryptoAsset, Transaction } from './types/crypto';
@@ -25,12 +26,19 @@ export default function App() {
   });
 
   const [selectedAsset, setSelectedAsset] = useState<CryptoAsset | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'ativos' | 'graficos' | 'estrategia'>('dashboard');
+
+  // Modais e Estados de Edição/Adição
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [addModalType, setAddModalType] = useState<'Compra' | 'Venda' | 'Troca'>('Compra');
+  const [addModalSource, setAddModalSource] = useState<CryptoAsset | undefined>(undefined);
+  
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string>('');
-
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'ativos' | 'graficos' | 'estrategia'>('dashboard');
+  
+  const [isEditAssetModalOpen, setIsEditAssetModalOpen] = useState(false);
+  const [assetToEdit, setAssetToEdit] = useState<CryptoAsset | null>(null);
 
   const [isPrivacyMode, setIsPrivacyMode] = useState(() => {
     const saved = localStorage.getItem('crypto_portfolio_privacy');
@@ -100,7 +108,12 @@ export default function App() {
           if (coinData && coinData.usd !== undefined) {
             const price = safeNum(coinData.usd);
             const change24h = safeNum(coinData.usd_24h_change);
-            return { ...asset, currentPrice: price, trend: change24h > 5 ? 'Alta Forte' : change24h > 0 ? 'Alta' : 'Baixa' };
+            return { 
+              ...asset, 
+              currentPrice: price, 
+              trend: change24h > 5 ? 'Alta Forte' : change24h > 0 ? 'Alta' : 'Baixa',
+              athChange: change24h // Adicionado para alimentar o Motor de Sinais na PortfolioTable
+            };
           }
           return asset;
         }));
@@ -115,14 +128,17 @@ export default function App() {
     return () => clearInterval(interval);
   }, [assets.length]);
 
-  const handleAddAsset = async (newEntry: Omit<CryptoAsset, 'currentPrice' | 'trend'>, type: 'Compra' | 'Venda' | 'Troca', transactionDate: string, walletName: string, targetEntry?: Omit<CryptoAsset, 'currentPrice' | 'trend'>) => {
+  // Função para lidar com Swap e Adição de Ativos
+  const handleAddAsset = async (newEntry: Omit<CryptoAsset, 'currentPrice' | 'trend'>, type: 'Compra' | 'Venda' | 'Troca', transactionDate: string, walletName: string, sourceEntry?: Omit<CryptoAsset, 'currentPrice' | 'trend'>) => {
     const [year, month, day] = transactionDate.split('-');
     const formattedDate = `${day}/${month}/${year}`;
     let updatedTxs = [...transactions];
 
-    if (type === 'Troca' && targetEntry) {
-      const txOut: Transaction = { id: `tx-out-${Date.now()}`, assetId: newEntry.id, type: 'Venda', date: formattedDate, amount: safeNum(newEntry.investedAmount), priceAtDate: 0, quantity: safeNum(newEntry.quantity), wallet: walletName };
-      const txIn: Transaction = { id: `tx-in-${Date.now()}`, assetId: targetEntry.id, type: 'Compra', date: formattedDate, amount: safeNum(targetEntry.investedAmount), priceAtDate: 0, quantity: safeNum(targetEntry.quantity), wallet: walletName };
+    if (type === 'Troca' && sourceEntry) {
+      // Deduz o USDT (ou moeda de origem)
+      const txOut: Transaction = { id: `tx-out-${Date.now()}`, assetId: sourceEntry.id, type: 'Venda', date: formattedDate, amount: safeNum(sourceEntry.investedAmount), priceAtDate: 0, quantity: safeNum(sourceEntry.quantity), wallet: walletName };
+      // Adiciona a Nova Moeda
+      const txIn: Transaction = { id: `tx-in-${Date.now()+1}`, assetId: newEntry.id, type: 'Compra', date: formattedDate, amount: safeNum(newEntry.investedAmount), priceAtDate: 0, quantity: safeNum(newEntry.quantity), wallet: walletName };
       updatedTxs = [txIn, txOut, ...updatedTxs];
     } else {
       const newTx: Transaction = { id: `tx-${Date.now()}`, assetId: newEntry.id, type: type as 'Compra'|'Venda', date: formattedDate, amount: safeNum(newEntry.investedAmount), priceAtDate: 0, quantity: safeNum(newEntry.quantity), wallet: walletName };
@@ -143,6 +159,28 @@ export default function App() {
       setAssets((currentAssets) => syncAssetsWithTransactions(updatedTxs, currentAssets));
       updatePrices();
     }, 50);
+  };
+
+  // Nova função para Editar Ativo Consolidadamente
+  const handleEditAsset = (assetId: string, newWallet: string, newQuantity: number, newInvested: number) => {
+    const remainingTxs = transactions.filter(t => t.assetId !== assetId);
+    
+    if (newQuantity > 0) {
+      const consolidatedTx: Transaction = {
+        id: `tx-consolidated-${Date.now()}`,
+        assetId: assetId,
+        type: 'Compra',
+        date: new Date().toLocaleDateString('pt-PT'),
+        amount: safeNum(newInvested),
+        priceAtDate: 0,
+        quantity: safeNum(newQuantity),
+        wallet: newWallet
+      };
+      remainingTxs.push(consolidatedTx);
+    }
+    
+    setTransactions(remainingTxs);
+    syncAssetsWithTransactions(remainingTxs, assets);
   };
 
   const handleSaveEditedTransaction = (updatedTx: Transaction) => {
@@ -286,7 +324,7 @@ export default function App() {
               <button onClick={() => setIsPrivacyMode(!isPrivacyMode)} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-lg transition" title={isPrivacyMode ? "Mostrar Valores" : "Ocultar Valores"}>
                 {isPrivacyMode ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
-              <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-semibold text-xs shadow-lg shadow-emerald-500/10 active:scale-95">
+              <button onClick={() => { setAddModalType('Compra'); setAddModalSource(undefined); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-semibold text-xs shadow-lg shadow-emerald-500/10 active:scale-95">
                 <Plus size={15} /> Nova Transação
               </button>
             </div>
@@ -299,35 +337,21 @@ export default function App() {
               <TransactionHistory asset={activeSelectedAsset} transactions={displayedTransactions} onBack={() => setSelectedAsset(null)} onOpenAddModal={() => setIsModalOpen(true)} onDeleteTransaction={handleDeleteTransaction} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsEditModalOpen(true); }} />
             ) : (
               <>
-                {/* MENU DE NAVEGAÇÃO DE ABAS */}
                 <div className="flex items-center gap-8 border-b border-slate-800/80 mb-8">
-                  <button 
-                    onClick={() => setActiveTab('dashboard')}
-                    className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'dashboard' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
-                  >
+                  <button onClick={() => setActiveTab('dashboard')} className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'dashboard' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
                     <LayoutDashboard size={16} /> Resumo Geral
                   </button>
-                  <button 
-                    onClick={() => setActiveTab('ativos')}
-                    className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'ativos' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
-                  >
+                  <button onClick={() => setActiveTab('ativos')} className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'ativos' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
                     <Wallet size={16} /> Meus Ativos
                   </button>
-                  <button 
-                    onClick={() => setActiveTab('graficos')}
-                    className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'graficos' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
-                  >
+                  <button onClick={() => setActiveTab('graficos')} className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'graficos' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
                     <PieChart size={16} /> Distribuição & Radar
                   </button>
-                  <button 
-                    onClick={() => setActiveTab('estrategia')}
-                    className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'estrategia' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
-                  >
+                  <button onClick={() => setActiveTab('estrategia')} className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'estrategia' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
                     <Compass size={16} /> Estratégia Analítica
                   </button>
                 </div>
 
-                {/* ABA 1: RESUMO GERAL */}
                 {activeTab === 'dashboard' && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -339,14 +363,18 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ABA 2: MEUS ATIVOS */}
                 {activeTab === 'ativos' && (
                   <div className="space-y-6">
-                    <PortfolioTable assets={displayedAssets} onRemove={handleRemoveAsset} onSelectAsset={(asset) => setSelectedAsset(asset)} />
+                    <PortfolioTable 
+                      assets={displayedAssets} 
+                      onRemove={handleRemoveAsset} 
+                      onSelectAsset={(asset) => setSelectedAsset(asset)} 
+                      onEditAsset={(asset) => { setAssetToEdit(asset); setIsEditAssetModalOpen(true); }}
+                      onSwapAsset={(asset) => { setAddModalSource(asset); setAddModalType('Troca'); setIsModalOpen(true); }}
+                    />
                   </div>
                 )}
 
-                {/* ABA 3: DISTRIBUIÇÃO & RADAR */}
                 {activeTab === 'graficos' && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <AllocationChart assets={displayedAssets} />
@@ -354,7 +382,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ABA 4: ESTRATÉGIA */}
                 {activeTab === 'estrategia' && (
                   <PortfolioStrategy assets={displayedAssets} />
                 )}
@@ -364,8 +391,24 @@ export default function App() {
         </div>
       </main>
 
-      <AddAssetModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={handleAddAsset} wallets={portfolios.map(p => p.name)} defaultWallet={activePortfolio || (portfolios.length > 0 ? portfolios[0].name : 'Sem Carteira')} />
+      <AddAssetModal 
+        isOpen={isModalOpen} 
+        onClose={() => { setIsModalOpen(false); setAddModalSource(undefined); setAddModalType('Compra'); }} 
+        onAdd={handleAddAsset} 
+        wallets={portfolios.map(p => p.name)} 
+        defaultWallet={activePortfolio || (portfolios.length > 0 ? portfolios[0].name : 'Sem Carteira')} 
+        initialType={addModalType}
+        sourceAsset={addModalSource}
+      />
       <EditTransactionModal isOpen={isEditModalOpen} transaction={editingTransaction} onClose={() => { setIsEditModalOpen(false); setEditingTransaction(null); }} onSave={handleSaveEditedTransaction} />
+      
+      <EditAssetModal
+        isOpen={isEditAssetModalOpen}
+        asset={assetToEdit}
+        onClose={() => { setIsEditAssetModalOpen(false); setAssetToEdit(null); }}
+        onSave={handleEditAsset}
+        wallets={portfolios.map(p => p.name)}
+      />
     </div>
   );
 }
