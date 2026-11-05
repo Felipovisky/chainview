@@ -1,41 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, TrendingUp, TrendingDown, Minus, BarChart3, Edit2, ArrowLeftRight, Zap, Target, ShieldAlert, Clock } from 'lucide-react';
+import { Trash2, TrendingUp, TrendingDown, Minus, BarChart3, Edit2, ArrowLeftRight, Zap, Target, ShieldAlert, Clock, HelpCircle } from 'lucide-react';
 import type { CryptoAsset } from '../types/crypto';
-
 interface Props {
-  assets: CryptoAsset[];
-  onRemove: (id: string) => void;
-  onSelectAsset: (asset: CryptoAsset) => void;
-  onEditAsset?: (asset: CryptoAsset) => void;
-  onSwapAsset?: (asset: CryptoAsset) => void;
+assets: CryptoAsset[];
+onRemove: (id: string) => void;
+onSelectAsset: (asset: CryptoAsset) => void;
+onEditAsset?: (asset: CryptoAsset) => void;
+onSwapAsset?: (asset: CryptoAsset) => void;
 }
-
 type Timeframe = '24h' | '7d' | '30d' | '1y';
-
+// Componente para criar os tooltips flutuantes (balões de ajuda) - AGORA VIRADOS PARA BAIXO
+const TooltipHeader = ({ title, tooltip }: { title: string, tooltip: string }) => (
+<div className="group relative inline-flex items-center gap-1.5 cursor-help">
+    {title}
+    <HelpCircle size={14} className="text-slate-500 hover:text-slate-300 transition-colors" />
+    {/* top-full mt-2 faz abrir para baixo */}
+    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-56 p-2.5 bg-slate-700 text-xs text-slate-100 rounded-lg shadow-xl z-50 font-normal normal-case text-center pointer-events-none leading-relaxed">
+      {tooltip}
+      {/* Seta virada para cima (border-b) */}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-slate-700"></div>
+    </div>
+  </div>
+);
 export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsset, onEditAsset, onSwapAsset }) => {
-  const [timeframe, setTimeframe] = useState<Timeframe>(() => {
-    const saved = localStorage.getItem('chainview_table_timeframe');
-    return (saved as Timeframe) || '24h';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('chainview_table_timeframe', timeframe);
-  }, [timeframe]);
-
-  const safeNum = (val: any) => {
-    const num = Number(val);
-    return isNaN(num) ? 0 : num;
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(safeNum(value));
-  };
-
-  const generateSignal = (asset: CryptoAsset, profitPercentage: number, tf: Timeframe, changePercentage: number) => {
-    if (['USDT', 'USDC', 'DAI'].includes(asset.symbol.toUpperCase())) {
-      return { text: 'CAIXA', color: 'text-slate-400 bg-slate-800/50 border-slate-700', icon: ShieldAlert };
-    }
-
+const [timeframe, setTimeframe] = useState<Timeframe>(() => {
+const saved = localStorage.getItem('chainview_table_timeframe');
+return (saved as Timeframe) || '24h';
+});
+useEffect(() => {
+localStorage.setItem('chainview_table_timeframe', timeframe);
+}, [timeframe]);
+const safeNum = (val: any) => {
+const num = Number(val);
+return isNaN(num) ? 0 : num;
+};
+const formatCurrency = (value: number) => {
+return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(safeNum(value));
+};
+const generateSignal = (asset: CryptoAsset, profitPercentage: number, tf: Timeframe, changePercentage: number) => {
+if (['USDT', 'USDC', 'DAI'].includes(asset.symbol.toUpperCase())) {
+return { text: 'CAIXA', color: 'text-slate-400 bg-slate-800/50 border-slate-700', icon: ShieldAlert };
+}
     const thresholds = {
       '24h': { dipForte: -7, dipNormal: -2, euforia: 10, lucroAlvo: 20, lucroParcial: 10 },
       '7d':  { dipForte: -15, dipNormal: -5, euforia: 25, lucroAlvo: 30, lucroParcial: 15 },
@@ -46,7 +51,7 @@ export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsse
     if (changePercentage > thresholds.euforia && profitPercentage > thresholds.lucroAlvo) {
       return { text: 'VENDA FORTE', color: 'text-amber-400 bg-amber-400/10 border-amber-500/30', icon: Target };
     }
-    
+
     if (changePercentage > (thresholds.euforia / 2) && profitPercentage > thresholds.lucroParcial) {
       return { text: 'REALIZAR LUCRO', color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', icon: Target };
     }
@@ -60,40 +65,32 @@ export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsse
     }
 
     return { text: 'AGUARDAR', color: 'text-slate-400 bg-slate-800/50 border-slate-700', icon: Minus };
-  };
-
-  if (assets.length === 0) {
-    return (
-      <div className="bg-[#121824] rounded-xl p-8 border border-slate-800/80 text-center shadow-lg">
-        <p className="text-slate-400 text-sm">Ainda não adicionou ativos. Registe uma nova transação.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-[#121824] rounded-xl border border-slate-800/80 overflow-hidden shadow-lg">
-      
-      <div className="bg-[#0b0e14] border-b border-slate-800/80 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider">
-          <Clock size={14} className="text-indigo-400" /> Horizonte dos Sinais Táticos
-        </div>
-        <div className="flex bg-[#121824] p-1 rounded-lg border border-slate-800">
-          {(['24h', '7d', '30d', '1y'] as Timeframe[]).map((tf) => (
-            <button
-              key={tf}
-              onClick={() => setTimeframe(tf)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
-                timeframe === tf 
-                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              {tf === '24h' ? 'HOJE' : tf === '7d' ? '7 DIAS' : tf === '30d' ? '1 MÊS' : '1 ANO'}
-            </button>
-          ))}
-        </div>
-      </div>
-
+};
+if (assets.length === 0) {
+return (
+<div className="bg-[#121824] p-12 text-center text-slate-400 rounded-2xl border border-slate-800">
+Ainda não adicionou ativos. Registe uma nova transação.
+</div>
+);
+}
+return (
+<div className="bg-[#121824] rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+<div className="bg-[#0b0e14] border-b border-slate-800/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+<div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider">
+<Clock size={14} className="text-indigo-400" /> Horizonte dos Sinais Táticos
+</div>
+<div className="flex bg-[#121824] p-1 rounded-lg border border-slate-800 overflow-x-auto">
+{(['24h', '7d', '30d', '1y'] as Timeframe[]).map((tf) => (
+<button
+key={tf}
+onClick={() => setTimeframe(tf)}
+className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap ${ timeframe === tf  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-sm'  : 'text-slate-500 hover:text-slate-300' }`}
+>
+{tf === '24h' ? 'HOJE' : tf === '7d' ? '7 DIAS' : tf === '30d' ? '1 MÊS' : '1 ANO'}
+</button>
+))}
+</div>
+</div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-[#0b0e14] text-xs uppercase text-slate-500 border-b border-slate-800/80 font-bold tracking-wider">
@@ -101,10 +98,18 @@ export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsse
               <th className="py-4 px-6">Ativo</th>
               <th className="py-4 px-4 text-right">Preço</th>
               <th className="py-4 px-4 text-right">Saldo</th>
-              <th className="py-4 px-4 text-right hidden sm:table-cell">Total / Preço Médio</th>
-              <th className="py-4 px-4 text-right">Rentabilidade</th>
-              <th className="py-4 px-4 text-center">Variação ({timeframe})</th>
-              <th className="py-4 px-4 text-center text-indigo-400 bg-indigo-500/5">Sinal</th>
+              <th className="py-4 px-4 text-right hidden sm:table-cell">
+                <TooltipHeader title="Total / Preço Médio" tooltip="O Preço Médio (PM) é recalculado automaticamente considerando todas as suas compras e abatendo as vendas parciais." />
+              </th>
+              <th className="py-4 px-4 text-right">
+                <TooltipHeader title="Rentabilidade" tooltip="Mostra o seu lucro ou prejuízo exato em USD e % com base no seu Preço Médio e no Preço Atual do mercado." />
+              </th>
+              <th className="py-4 px-4 text-center">
+                <TooltipHeader title={`Variação (${timeframe})`} tooltip="Variação percentual do mercado para esta moeda no horizonte temporal selecionado." />
+              </th>
+              <th className="py-4 px-4 text-center text-indigo-400 bg-indigo-500/5">
+                <TooltipHeader title="Sinal" tooltip="Recomendação tática gerada pelo algoritmo cruzando a sua Rentabilidade com a Variação do mercado." />
+              </th>
               <th className="py-4 px-4 text-right">Ações</th>
             </tr>
           </thead>
@@ -215,5 +220,5 @@ export const PortfolioTable: React.FC<Props> = ({ assets, onRemove, onSelectAsse
         </table>
       </div>
     </div>
-  );
+);
 };
