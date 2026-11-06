@@ -1,46 +1,56 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, Loader2, ArrowRight, ArrowLeftRight } from 'lucide-react';
 import type { CryptoAsset } from '../types/crypto';
+
 interface Props {
-isOpen: boolean;
-onClose: () => void;
-onAdd: (asset: Omit<CryptoAsset, 'currentPrice' | 'trend'>, type: 'Compra' | 'Venda' | 'Troca', date: string, wallet: string, sourceAsset?: Omit<CryptoAsset, 'currentPrice' | 'trend'>) => void;
-wallets: string[];
-defaultWallet: string;
-initialType?: 'Compra' | 'Venda' | 'Troca';
-sourceAsset?: CryptoAsset;
+  isOpen: boolean;
+  onClose: () => void;
+  onAdd: (asset: Omit<CryptoAsset, 'currentPrice' | 'trend'>, type: 'Compra' | 'Venda' | 'Troca', date: string, wallet: string, sourceAsset?: CryptoAsset) => void;
+  wallets: string[];
+  defaultWallet: string;
+  initialType?: 'Compra' | 'Venda' | 'Troca';
+  sourceAsset?: CryptoAsset;
 }
+
 export const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onAdd, wallets, defaultWallet, initialType = 'Compra', sourceAsset }) => {
-const [type, setType] = useState<'Compra' | 'Venda' | 'Troca'>(initialType);
-const [searchQuery, setSearchQuery] = useState('');
-const [searchResults, setSearchResults] = useState<any[]>([]);
-const [isSearching, setIsSearching] = useState(false);
-const [selectedCoin, setSelectedCoin] = useState<any>(null);
-const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
-const [wallet, setWallet] = useState(defaultWallet);
-const [quantity, setQuantity] = useState('');
-const [investedAmount, setInvestedAmount] = useState('');
-useEffect(() => {
-if (isOpen) {
-setType(initialType);
-setWallet(defaultWallet);
-if (sourceAsset && initialType === 'Troca') {
-const sourceTotalValue = sourceAsset.quantity * sourceAsset.currentPrice;
-setInvestedAmount(sourceTotalValue.toString());
-}
-} else {
-setSearchQuery('');
-setSearchResults([]);
-setSelectedCoin(null);
-setQuantity('');
-setInvestedAmount('');
-}
-}, [isOpen, initialType, defaultWallet, sourceAsset]);
-useEffect(() => {
-if (searchQuery.length < 2) {
-setSearchResults([]);
-return;
-}
+  const [type, setType] = useState<'Compra' | 'Venda' | 'Troca'>(initialType);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedCoin, setSelectedCoin] = useState<any>(null);
+  
+  const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [wallet, setWallet] = useState(defaultWallet);
+  const [quantity, setQuantity] = useState('');
+  const [investedAmount, setInvestedAmount] = useState('');
+  const [fees, setFees] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setType(initialType);
+      setWallet(defaultWallet);
+      if (sourceAsset && initialType === 'Troca') {
+        const sourceTotalValue = sourceAsset.quantity * sourceAsset.currentPrice;
+        setInvestedAmount(sourceTotalValue.toString());
+        // Pré-define a quantidade exata vendida na troca para o motor não limpar o saldo todo
+        // (Guardamos temporariamente no state se necessário ou tratamos no App)
+      }
+    } else {
+      setSearchQuery('');
+      setSearchResults([]);
+      setSelectedCoin(null);
+      setQuantity('');
+      setInvestedAmount('');
+      setFees('');
+    }
+  }, [isOpen, initialType, defaultWallet, sourceAsset]);
+
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
@@ -63,35 +73,46 @@ return;
     }, 500);
 
     return () => clearTimeout(timer);
-}, [searchQuery]);
-if (!isOpen) return null;
-const handleSubmit = (e: React.FormEvent) => {
-e.preventDefault();
-if (!selectedCoin) return;
+  }, [searchQuery]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCoin) return;
+
     const cleanName = String(selectedCoin.name || '').includes('EigenCloud') ? 'EigenLayer' : selectedCoin.name;
+    const baseInvested = Number(investedAmount);
+    const txFees = Number(fees) || 0;
+    
+    const finalInvestedAmount = type === 'Compra' 
+      ? baseInvested + txFees 
+      : Math.max(0, baseInvested - txFees); 
 
     const newAsset = {
       id: selectedCoin.id,
       symbol: selectedCoin.symbol.toUpperCase(),
       name: cleanName,
       quantity: Number(quantity),
-      investedAmount: Number(investedAmount),
+      investedAmount: finalInvestedAmount,
     };
 
     onAdd(newAsset, type, transactionDate, wallet, sourceAsset);
     onClose();
-};
-return (
-<div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-<div className="bg-[#121824] border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-<div className="flex items-center justify-between p-5 border-b border-slate-700 bg-[#0b0e14] shrink-0">
-<h2 className="text-lg font-bold text-white flex items-center gap-2">
-<span className="text-emerald-500 bg-emerald-500/10 p-1 rounded-md text-sm">+</span> Registar Transação
-</h2>
-<button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
-<X size={18} />
-</button>
-</div>
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#121824] border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between p-5 border-b border-slate-700 bg-[#0b0e14] shrink-0">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <span className="text-emerald-500 bg-emerald-500/10 p-1 rounded-md text-sm">+</span> Registar Transação
+          </h2>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
         <div className="p-5 overflow-y-auto">
           <div className="flex p-1 bg-[#0b0e14] rounded-lg border border-slate-800 mb-6">
             <button type="button" onClick={() => setType('Compra')} className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${type === 'Compra' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'text-slate-500 hover:text-slate-300'}`}>COMPRA</button>
@@ -131,7 +152,7 @@ return (
               {!selectedCoin ? (
                 <div className="relative">
                   <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input type="text" placeholder="Pesquisar moeda (ex: Bitcoin, EIGEN)..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500" />
+                  <input type="text" placeholder="Pesquisar moeda (ex: Bitcoin, USDT)..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500" />
                   {isSearching && <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 animate-spin" />}
                   
                   {searchResults.length > 0 && (
@@ -163,15 +184,24 @@ return (
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
+              <div className="col-span-2">
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Quantidade ({selectedCoin ? selectedCoin.symbol.toUpperCase() : 'Moedas'})</label>
                 <input type="number" step="any" min="0" placeholder="0.00" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-700 rounded-lg px-3 py-3 text-sm text-white focus:outline-none focus:border-emerald-500" required />
               </div>
+              
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Total (USD)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
                   <input type="number" step="any" min="0" placeholder="0.00" value={investedAmount} onChange={(e) => setInvestedAmount(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-700 rounded-lg pl-7 pr-3 py-3 text-sm text-white focus:outline-none focus:border-emerald-500" required />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Taxas / Gas (Opcional)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+                  <input type="number" step="any" min="0" placeholder="0.00" value={fees} onChange={(e) => setFees(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-700 rounded-lg pl-7 pr-3 py-3 text-sm text-white focus:outline-none focus:border-rose-500" />
                 </div>
               </div>
             </div>
@@ -186,5 +216,5 @@ return (
         </div>
       </div>
     </div>
-);
+  );
 };

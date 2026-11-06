@@ -1,79 +1,70 @@
-import React, { useMemo } from 'react';
-import type { CryptoAsset } from '../types/crypto';
+import React from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
-
+import type { CryptoAsset } from '../types/crypto';
 interface Props {
-  assets: CryptoAsset[];
+assets: CryptoAsset[];
 }
-
 export const TopPerformers: React.FC<Props> = ({ assets }) => {
-  const { topWinners, topLosers } = useMemo(() => {
-    if (!assets || assets.length === 0) return { topWinners: [], topLosers: [] };
-
-    const perf = assets
-      .filter(a => a.symbol !== 'USDT' && a.symbol !== 'USDC')
-      .map(a => {
-        const invested = Number(a.investedAmount) || 0;
-        const currentVal = Number(a.quantity) * Number(a.currentPrice);
-        const profit = currentVal - invested;
-        const profitPct = invested > 0 ? (profit / invested) * 100 : 0;
-        return { ...a, profit, profitPct };
-      })
-      .sort((a, b) => b.profit - a.profit);
-
-    const winners = perf.filter(a => a.profit > 0).slice(0, 3);
-    const losers = perf.filter(a => a.profit < 0).reverse().slice(0, 3);
-
-    return { topWinners: winners, topLosers: losers };
-  }, [assets]);
-
-  return (
-    <div className="bg-[#121824] border border-slate-800/80 rounded-xl p-6 flex flex-col shadow-lg">
-      <h3 className="text-sm font-bold text-white mb-6 uppercase tracking-wider">Top 3 Movimentações</h3>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 flex-1 md:divide-x md:divide-slate-800/60">
-        
-        {/* Bloco de Maiores Lucros */}
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold mb-4 uppercase tracking-wider">
-            <TrendingUp size={16} /> Maiores Lucros
-          </div>
-          <div className="space-y-3">
-            {topWinners.length > 0 ? topWinners.map(asset => (
-              <div key={asset.id} className="flex items-center justify-between bg-[#0b0e14] p-3.5 rounded-lg border border-slate-800/50 hover:border-emerald-500/30 transition-colors">
-                <span className="text-sm font-bold text-slate-200">{asset.symbol}</span>
-                <div className="text-right">
-                  <div className="text-sm font-bold text-emerald-400">+${asset.profit.toFixed(2)}</div>
-                  <div className="text-xs font-medium text-emerald-500/70">+{asset.profitPct.toFixed(2)}%</div>
+const safeNum = (n: any) => (isNaN(Number(n)) ? 0 : Number(n));
+const performaceData = assets.map(asset => {
+const invested = safeNum(asset.investedAmount);
+const isStable = ['tether', 'usd-coin', 'dai', 'usdt', 'usdc'].includes(asset.id.toLowerCase()) || ['USDT', 'USDC', 'DAI'].includes(asset.symbol.toUpperCase());
+const currentPrice = isStable ? 1 : safeNum(asset.currentPrice);
+const currentValue = safeNum(asset.quantity) * currentPrice;
+    const profit = currentValue - invested;
+    const profitPct = invested > 0 ? (profit / invested) * 100 : 0;
+    
+    return { ...asset, profit, profitPct };
+}).filter(a => safeNum(a.quantity) > 0.000001 && a.investedAmount > 0);
+const topGainers = [...performaceData].filter(a => a.profit > 0).sort((a, b) => b.profit - a.profit).slice(0, 5);
+const topLosers = [...performaceData].filter(a => a.profit < 0).sort((a, b) => a.profit - b.profit).slice(0, 5);
+const formatUsd = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val);
+return (
+<div className="bg-[#121824] border border-slate-800/80 rounded-xl p-4 shadow-lg">
+<h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Top 5 Movimentações</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <h4 className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2">
+            <TrendingUp size={14} /> Maiores Lucros
+          </h4>
+          <div className="grid grid-cols-5 gap-2">
+            {topGainers.length === 0 ? (
+              <div className="col-span-5 text-slate-500 text-xs py-1">Sem ativos com lucro no momento.</div>
+            ) : (
+              topGainers.map(asset => (
+                <div key={asset.id} className="bg-[#0b0e14] border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between text-center hover:border-slate-700 transition-colors">
+                  <div className="font-bold text-slate-200 text-xs">{asset.symbol}</div>
+                  <div>
+                    <div className="text-emerald-400 font-bold text-xs">{formatUsd(asset.profit)}</div>
+                    <div className="text-[10px] text-emerald-500/70 font-medium">+{asset.profitPct.toFixed(1)}%</div>
+                  </div>
                 </div>
-              </div>
-            )) : (
-              <div className="text-xs text-slate-500 italic py-6 text-center bg-[#0b0e14] rounded-lg border border-slate-800/30">Nenhum ativo em lucro.</div>
+              ))
             )}
           </div>
         </div>
 
-        {/* Bloco de Maiores Prejuízos */}
-        <div className="flex flex-col md:pl-8">
-          <div className="flex items-center gap-1.5 text-rose-400 text-xs font-bold mb-4 uppercase tracking-wider">
-            <TrendingDown size={16} /> Maiores Prejuízos
-          </div>
-          <div className="space-y-3">
-            {topLosers.length > 0 ? topLosers.map(asset => (
-              <div key={asset.id} className="flex items-center justify-between bg-[#0b0e14] p-3.5 rounded-lg border border-slate-800/50 hover:border-rose-500/30 transition-colors">
-                <span className="text-sm font-bold text-slate-200">{asset.symbol}</span>
-                <div className="text-right">
-                  <div className="text-sm font-bold text-rose-400">-${Math.abs(asset.profit).toFixed(2)}</div>
-                  <div className="text-xs font-medium text-rose-500/70">{asset.profitPct.toFixed(2)}%</div>
+        <div>
+          <h4 className="flex items-center gap-1.5 text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-2">
+            <TrendingDown size={14} /> Maiores Prejuízos
+          </h4>
+          <div className="grid grid-cols-5 gap-2">
+            {topLosers.length === 0 ? (
+              <div className="col-span-5 text-slate-500 text-xs py-1">Sem ativos com prejuízo no momento.</div>
+            ) : (
+              topLosers.map(asset => (
+                <div key={asset.id} className="bg-[#0b0e14] border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between text-center hover:border-slate-700 transition-colors">
+                  <div className="font-bold text-slate-200 text-xs">{asset.symbol}</div>
+                  <div>
+                    <div className="text-rose-400 font-bold text-xs">{formatUsd(asset.profit)}</div>
+                    <div className="text-[10px] text-rose-500/70 font-medium">{asset.profitPct.toFixed(1)}%</div>
+                  </div>
                 </div>
-              </div>
-            )) : (
-              <div className="text-xs text-slate-500 italic py-6 text-center bg-[#0b0e14] rounded-lg border border-slate-800/30">Nenhum ativo em prejuízo.</div>
+              ))
             )}
           </div>
         </div>
-
       </div>
     </div>
-  );
+);
 };

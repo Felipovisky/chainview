@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, TrendingUp, TrendingDown, Minus, BarChart3, Edit2, ArrowLeftRight, Zap, Target, ShieldAlert, Clock, HelpCircle } from 'lucide-react';
+import { Trash2, TrendingUp, TrendingDown, Minus, BarChart3, Edit2, ArrowLeftRight, Zap, Target, ShieldAlert, HelpCircle } from 'lucide-react';
 import type { CryptoAsset } from '../types/crypto';
 interface Props {
 assets: CryptoAsset[];
@@ -9,16 +9,13 @@ onEditAsset?: (asset: CryptoAsset) => void;
 onSwapAsset?: (asset: CryptoAsset) => void;
 }
 type Timeframe = '24h' | '7d' | '30d' | '1y';
-// Componente para criar os tooltips flutuantes (balões de ajuda) - AGORA VIRADOS PARA BAIXO
 const TooltipHeader = ({ title, tooltip }: { title: string, tooltip: string }) => (
-<div className="group relative inline-flex items-center gap-1.5 cursor-help">
-    {title}
-    <HelpCircle size={14} className="text-slate-500 hover:text-slate-300 transition-colors" />
-    {/* top-full mt-2 faz abrir para baixo */}
-    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-56 p-2.5 bg-slate-700 text-xs text-slate-100 rounded-lg shadow-xl z-50 font-normal normal-case text-center pointer-events-none leading-relaxed">
-      {tooltip}
-      {/* Seta virada para cima (border-b) */}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-1 border-4 border-transparent border-b-slate-700"></div>
+<div className="group relative inline-flex items-center gap-1 cursor-help">
+    <span className="border-b border-dashed border-slate-600 pb-0.5">{title}</span>
+    <HelpCircle size={12} className="text-slate-500" />
+    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-3 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl text-xs text-slate-200 font-normal normal-case leading-relaxed opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] pointer-events-none">
+      <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-800 border-t border-l border-slate-700 transform rotate-45"></div>
+      <span className="relative z-10">{tooltip}</span>
     </div>
   </div>
 );
@@ -68,30 +65,36 @@ return { text: 'CAIXA', color: 'text-slate-400 bg-slate-800/50 border-slate-700'
 };
 if (assets.length === 0) {
 return (
-<div className="bg-[#121824] p-12 text-center text-slate-400 rounded-2xl border border-slate-800">
-Ainda não adicionou ativos. Registe uma nova transação.
+<div className="bg-[#121824] border border-slate-800/80 rounded-xl p-12 text-center shadow-lg">
+<h3 className="text-lg font-bold text-white mb-2">Ainda não adicionou ativos.</h3>
+<p className="text-slate-400 text-sm">Registe uma nova transação para ver a sua carteira aqui.</p>
 </div>
 );
 }
 return (
-<div className="bg-[#121824] rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
-<div className="bg-[#0b0e14] border-b border-slate-800/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-<div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider">
-<Clock size={14} className="text-indigo-400" /> Horizonte dos Sinais Táticos
-</div>
-<div className="flex bg-[#121824] p-1 rounded-lg border border-slate-800 overflow-x-auto">
-{(['24h', '7d', '30d', '1y'] as Timeframe[]).map((tf) => (
-<button
-key={tf}
-onClick={() => setTimeframe(tf)}
-className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap ${ timeframe === tf  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-sm'  : 'text-slate-500 hover:text-slate-300' }`}
->
-{tf === '24h' ? 'HOJE' : tf === '7d' ? '7 DIAS' : tf === '30d' ? '1 MÊS' : '1 ANO'}
-</button>
-))}
-</div>
-</div>
-      <div className="overflow-x-auto">
+<div className="bg-[#121824] border border-slate-800/80 rounded-xl overflow-visible shadow-lg">
+<div className="p-5 border-b border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+<h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+<Target size={16} /> Horizonte dos Sinais Táticos
+</h3>
+        <div className="flex bg-[#121824] p-1 rounded-lg border border-slate-800">
+          {(['24h', '7d', '30d', '1y'] as Timeframe[]).map((tf) => (
+            <button
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap ${
+                timeframe === tf 
+                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {tf === '24h' ? 'HOJE' : tf === '7d' ? '7 DIAS' : tf === '30d' ? '1 MÊS' : '1 ANO'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto relative pb-10 sm:pb-0">
         <table className="w-full text-left text-sm">
           <thead className="bg-[#0b0e14] text-xs uppercase text-slate-500 border-b border-slate-800/80 font-bold tracking-wider">
             <tr>
@@ -99,10 +102,13 @@ className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-n
               <th className="py-4 px-4 text-right">Preço</th>
               <th className="py-4 px-4 text-right">Saldo</th>
               <th className="py-4 px-4 text-right hidden sm:table-cell">
-                <TooltipHeader title="Total / Preço Médio" tooltip="O Preço Médio (PM) é recalculado automaticamente considerando todas as suas compras e abatendo as vendas parciais." />
+                <TooltipHeader title="Preço Médio" tooltip="Calculado automaticamente considerando todas as suas compras e abatendo vendas parciais." />
+              </th>
+              <th className="py-4 px-4 text-right hidden sm:table-cell">
+                <TooltipHeader title="Total" tooltip="Valor total atualizado deste ativo na sua carteira." />
               </th>
               <th className="py-4 px-4 text-right">
-                <TooltipHeader title="Rentabilidade" tooltip="Mostra o seu lucro ou prejuízo exato em USD e % com base no seu Preço Médio e no Preço Atual do mercado." />
+                <TooltipHeader title="Rentabilidade" tooltip="Lucro ou prejuízo em USD e % com base no seu Preço Médio e no Preço Atual." />
               </th>
               <th className="py-4 px-4 text-center">
                 <TooltipHeader title={`Variação (${timeframe})`} tooltip="Variação percentual do mercado para esta moeda no horizonte temporal selecionado." />
@@ -141,8 +147,14 @@ className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-n
                 <tr key={asset.id} className="hover:bg-slate-800/20 transition-colors group cursor-pointer" onClick={() => onSelectAsset(asset)}>
                   <td className="py-4 px-6">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-300">
-                        {asset.symbol.slice(0, 3)}
+                      <div className="w-8 h-8 rounded-full bg-[#0b0e14] border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-300 relative overflow-hidden shrink-0">
+                        <span className="absolute z-0">{asset.symbol.slice(0, 3)}</span>
+                        <img 
+                          src={(asset as any).imageUrl || `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`} 
+                          alt={asset.symbol}
+                          className="w-full h-full object-cover relative z-10 bg-[#0b0e14]"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
                       </div>
                       <div>
                         <div className="font-bold text-slate-200">{asset.name}</div>
@@ -160,8 +172,11 @@ className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all whitespace-n
                   </td>
                   
                   <td className="py-4 px-4 text-right hidden sm:table-cell">
+                    <div className="font-medium text-slate-300">{formatCurrency(avgPrice)}</div>
+                  </td>
+
+                  <td className="py-4 px-4 text-right hidden sm:table-cell">
                     <div className="font-bold text-white">{formatCurrency(totalValue)}</div>
-                    <div className="text-[10px] text-slate-500 uppercase mt-0.5">PM: {formatCurrency(avgPrice)}</div>
                   </td>
                   
                   <td className="py-4 px-4 text-right">
