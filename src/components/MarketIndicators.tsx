@@ -17,30 +17,60 @@ export const MarketIndicators: React.FC<Props> = ({ assets, variant = 'full' }) 
   }, [activeTab]);
 
   const [fngValue, setFngValue] = useState(50);
+  const [fngText, setFngText] = useState('NEUTRO');
   const [isLoadingFng, setIsLoadingFng] = useState(true);
   const [athData, setAthData] = useState<Record<string, number>>({});
 
+  const getCategoryText = (val: number) => {
+    if (val < 20) return "MEDO EXTREMO";
+    if (val < 40) return "MEDO";
+    if (val < 60) return "NEUTRO";
+    if (val < 80) return "GANÂNCIA";
+    return "GANÂNCIA EXTREMA";
+  };
+
+  const getFngColor = (val: number) => {
+    if (val < 20) return "#ef4444";
+    if (val < 40) return "#f97316";
+    if (val < 60) return "#eab308";
+    if (val < 80) return "#84cc16";
+    return "#22c55e";
+  };
+
   useEffect(() => {
     let isMounted = true;
-    const calculateSentiment = async () => {
+    const fetchFearAndGreed = async () => {
       try {
-        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin&price_change_percentage=24h');
+        // Uso do AllOrigins Proxy para contornar o bloqueio de CORS da Vercel
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        const targetUrl = encodeURIComponent('https://api.alternative.me/fng/?limit=1');
+        
+        const res = await fetch(proxyUrl + targetUrl);
         const data = await res.json();
         
-        if (isMounted && data && data[0]) {
-          const change24h = data[0].price_change_percentage_24h || 0;
-          let calculatedVal = Math.round(50 + (change24h * 3.5));
-          if (calculatedVal < 10) calculatedVal = 10;
-          if (calculatedVal > 95) calculatedVal = 95;
-          setFngValue(calculatedVal);
+        if (isMounted && data && data.data && data.data[0]) {
+          const val = parseInt(data.data[0].value, 10);
+          setFngValue(val);
+          setFngText(getCategoryText(val));
         }
       } catch (e) {
-        setFngValue(50);
+        console.warn("Proxy também falhou, usando fallback do BTC:", e);
+        try {
+          const btcRes = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin&price_change_percentage=24h');
+          const btcData = await btcRes.json();
+          if (isMounted && btcData && btcData[0]) {
+            const change24h = btcData[0].price_change_percentage_24h || 0;
+            let calculatedVal = Math.round(50 + (change24h * 4));
+            calculatedVal = Math.max(5, Math.min(95, calculatedVal));
+            setFngValue(calculatedVal);
+            setFngText(getCategoryText(calculatedVal));
+          }
+        } catch (err) {}
       } finally {
         if (isMounted) setIsLoadingFng(false);
       }
     };
-    calculateSentiment();
+    fetchFearAndGreed();
     return () => { isMounted = false; };
   }, []);
 
@@ -76,15 +106,7 @@ export const MarketIndicators: React.FC<Props> = ({ assets, variant = 'full' }) 
     return `M ${start.x} ${start.y} A ${r} ${r} 0 0 1 ${end.x} ${end.y}`;
   };
 
-  const getFngInfo = (val: number) => {
-    if (val <= 25) return { text: "MEDO EXTREMO", color: "#ef4444", desc: "Mercado em pânico." };
-    if (val <= 45) return { text: "MEDO", color: "#f97316", desc: "Preços abaixo da média." };
-    if (val <= 55) return { text: "NEUTRO", color: "#eab308", desc: "Sem direção clara." };
-    if (val <= 75) return { text: "GANÂNCIA", color: "#84cc16", desc: "Otimismo no mercado." };
-    return { text: "GANÂNCIA EXTREMA", color: "#22c55e", desc: "Sinal de euforia máxima." };
-  };
-
-  const fngInfo = getFngInfo(fngValue);
+  const fngColor = getFngColor(fngValue);
   const angle = 180 + (fngValue / 100) * 180;
 
   if (variant === 'compact') {
@@ -108,12 +130,12 @@ export const MarketIndicators: React.FC<Props> = ({ assets, variant = 'full' }) 
               <path d={createArc(cx, cy, r, 254, 287)} fill="none" stroke="#eab308" strokeWidth="18" strokeLinecap="round" />
               <path d={createArc(cx, cy, r, 291, 324)} fill="none" stroke="#84cc16" strokeWidth="18" strokeLinecap="round" />
               <path d={createArc(cx, cy, r, 328, 360)} fill="none" stroke="#22c55e" strokeWidth="18" strokeLinecap="round" />
-              <circle cx={dotX} cy={dotY} r="8" fill="white" stroke={fngInfo.color} strokeWidth="3" />
+              <circle cx={dotX} cy={dotY} r="8" fill="white" stroke={fngColor} strokeWidth="3" />
             </svg>
             <div className="absolute top-[52px] left-1/2 -translate-x-1/2 text-center w-full">
               <div className="text-5xl font-black text-white leading-none tracking-tight">{fngValue}</div>
-              <div className="text-[11px] font-bold uppercase tracking-wider mt-2 truncate px-2" style={{ color: fngInfo.color }}>
-                {fngInfo.text}
+              <div className="text-[11px] font-bold uppercase tracking-wider mt-2 truncate px-2" style={{ color: fngColor }}>
+                {fngText}
               </div>
             </div>
           </div>
@@ -165,7 +187,7 @@ export const MarketIndicators: React.FC<Props> = ({ assets, variant = 'full' }) 
           <Gauge size={14} /> SENTIMENTO
         </button>
         <button onClick={() => setActiveTab('recompras')} className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${activeTab === 'recompras' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>
-          <Target size={14} /> RECOMPRAS
+          <Target size={14} /> DESCONTOS
         </button>
         <button onClick={() => setActiveTab('fundo')} className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${activeTab === 'fundo' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>
           <ArrowDownToLine size={14} /> FUNDO ATH
@@ -180,7 +202,7 @@ export const MarketIndicators: React.FC<Props> = ({ assets, variant = 'full' }) 
             {isLoadingFng ? (
               <div className="flex flex-col items-center justify-center gap-3 text-slate-500 my-12">
                 <Loader2 size={32} className="animate-spin text-slate-600" />
-                <span className="text-xs">A calcular sentimento...</span>
+                <span className="text-xs">A carregar índice oficial...</span>
               </div>
             ) : (
               <div className="relative w-full max-w-[300px] mb-8">
@@ -190,16 +212,15 @@ export const MarketIndicators: React.FC<Props> = ({ assets, variant = 'full' }) 
                   <path d={createArc(150, 120, 90, 254, 287)} fill="none" stroke="#eab308" strokeWidth="12" strokeLinecap="round" />
                   <path d={createArc(150, 120, 90, 291, 324)} fill="none" stroke="#84cc16" strokeWidth="12" strokeLinecap="round" />
                   <path d={createArc(150, 120, 90, 328, 360)} fill="none" stroke="#22c55e" strokeWidth="12" strokeLinecap="round" />
-                  <circle cx={dotXFull} cy={dotYFull} r="8" fill="white" stroke={fngInfo.color} strokeWidth="3" className="drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+                  <circle cx={dotXFull} cy={dotYFull} r="8" fill="white" stroke={fngColor} strokeWidth="3" className="drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
                 </svg>
 
                 <div className="absolute top-[80px] left-1/2 -translate-x-1/2 text-center flex flex-col items-center">
-                  <span className="text-5xl font-black text-white leading-none tracking-tighter" style={{ textShadow: `0 0 20px ${fngInfo.color}40` }}>{fngValue}</span>
-                  <span className="text-xs font-bold uppercase tracking-wider mt-2" style={{ color: fngInfo.color }}>{fngInfo.text}</span>
+                  <span className="text-5xl font-black text-white leading-none tracking-tighter" style={{ textShadow: `0 0 20px ${fngColor}40` }}>{fngValue}</span>
+                  <span className="text-xs font-bold uppercase tracking-wider mt-2" style={{ color: fngColor }}>{fngText}</span>
                 </div>
               </div>
             )}
-            {!isLoadingFng && <p className="text-xs text-slate-400 text-center max-w-[280px] leading-relaxed">{fngInfo.desc}</p>}
           </div>
         )}
 

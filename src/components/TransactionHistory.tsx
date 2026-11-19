@@ -5,25 +5,54 @@ import { ChevronLeft, Plus, Trash2, Edit3, Maximize2 } from 'lucide-react';
 interface Props {
   asset: CryptoAsset;
   transactions: Transaction[];
+  currency?: 'USD' | 'BRL';
+  exchangeRate?: number | null;
   onBack: () => void;
   onOpenAddModal: () => void;
   onDeleteTransaction: (txId: string) => void;
-  onEditTransaction: (tx: Transaction) => void; // Ação ao clicar no lápis
+  onEditTransaction: (tx: Transaction) => void;
 }
 
 export const TransactionHistory: React.FC<Props> = ({
   asset,
   transactions,
+  currency = 'USD',
+  exchangeRate = null,
   onBack,
   onOpenAddModal,
   onDeleteTransaction,
   onEditTransaction,
 }) => {
-  const assetTransactions = transactions.filter((t) => t.assetId === asset.id);
+  const isBrl = currency === 'BRL' && !!exchangeRate;
+  const rate = isBrl && exchangeRate ? exchangeRate : 1;
+  const locale = isBrl ? 'pt-BR' : 'en-US';
+  const symbolPrefix = isBrl ? 'R$ ' : '$';
+
+  const formatMoney = (usdVal: number, signed = false) => {
+    const val = usdVal * rate;
+    const sign = signed ? (val > 0 ? '+' : val < 0 ? '-' : '') : (val < 0 ? '-' : '');
+    return `${sign}${symbolPrefix}${Math.abs(val).toLocaleString(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  const parseDateForSort = (ptDate: string) => {
+    if (!ptDate) return 0;
+    if (ptDate.includes('-')) {
+      const [y, m, d] = ptDate.split('-');
+      return parseInt(`${y}${m}${d}`, 10) || 0;
+    }
+    const [d, m, y] = ptDate.split('/');
+    return parseInt(`${y}${m}${d}`, 10) || 0;
+  };
+
+  const assetTransactions = transactions
+    .filter((t) => t.assetId === asset.id)
+    .sort((a, b) => parseDateForSort(b.date) - parseDateForSort(a.date));
 
   return (
     <div className="space-y-6">
-      {/* Barra Superior da Visão de Histórico */}
       <div className="flex items-center justify-between bg-[#121824] border border-slate-800/80 rounded-xl px-5 py-3.5 shadow-sm">
         <div className="flex items-center gap-6">
           <button
@@ -44,7 +73,9 @@ export const TransactionHistory: React.FC<Props> = ({
             <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold flex items-center justify-center">
               {asset.symbol.slice(0, 3)}
             </span>
-            <span className="text-xs font-bold text-white">{asset.name} - {asset.symbol}</span>
+            <span className="text-xs font-bold text-white">
+              {asset.name} {asset.symbol}
+            </span>
           </div>
         </div>
 
@@ -65,7 +96,6 @@ export const TransactionHistory: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Tabela de Transações */}
       <div className="bg-[#121824] border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-300">
@@ -88,7 +118,7 @@ export const TransactionHistory: React.FC<Props> = ({
                 assetTransactions.map((tx) => {
                   const currentTxBalance = tx.quantity * asset.currentPrice;
                   const profit = currentTxBalance - tx.amount;
-                  const profitPercent = (profit / tx.amount) * 100;
+                  const profitPercent = tx.amount > 0 ? (profit / tx.amount) * 100 : 0;
                   const isProfitable = profit >= 0;
 
                   return (
@@ -103,11 +133,11 @@ export const TransactionHistory: React.FC<Props> = ({
                       <td className="px-6 py-4 text-white font-medium">{tx.date}</td>
 
                       <td className="px-6 py-4 text-right font-semibold text-white">
-                        ${tx.amount.toFixed(2)}
+                        {formatMoney(tx.amount)}
                       </td>
 
                       <td className="px-6 py-4 text-right text-slate-300">
-                        ${tx.priceAtDate.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatMoney(tx.priceAtDate)}
                       </td>
 
                       <td className="px-6 py-4 text-right text-slate-200">
@@ -122,7 +152,7 @@ export const TransactionHistory: React.FC<Props> = ({
                               : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                           }`}
                         >
-                          {isProfitable ? '+' : ''}${profit.toFixed(2)}
+                          {formatMoney(profit, true)}
                         </span>
                       </td>
 
@@ -139,14 +169,13 @@ export const TransactionHistory: React.FC<Props> = ({
                       </td>
 
                       <td className="px-6 py-4 text-right font-semibold text-emerald-400">
-                        ${currentTxBalance.toFixed(2)}
+                        {formatMoney(currentTxBalance)}
                       </td>
 
                       <td className="px-6 py-4 text-center font-sans text-slate-400 text-xs">
                         {tx.wallet || 'Sem Carteira'}
                       </td>
 
-                      {/* Coluna Ações com Edição funcional */}
                       <td className="px-6 py-4 text-center font-sans">
                         <div className="flex items-center justify-center gap-2 text-slate-400">
                           <button
@@ -173,7 +202,7 @@ export const TransactionHistory: React.FC<Props> = ({
               ) : (
                 <tr>
                   <td colSpan={10} className="px-6 py-8 text-center text-slate-500 text-xs">
-                    Nenhuma transação registada para esta moeda.
+                    Nenhuma transação registrada para esta moeda.
                   </td>
                 </tr>
               )}

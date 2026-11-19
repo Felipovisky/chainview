@@ -10,7 +10,7 @@ import { EditTransactionModal } from './components/EditTransactionModal';
 import { EditAssetModal } from './components/EditAssetModal';
 import { TransactionHistory } from './components/TransactionHistory';
 import type { CryptoAsset, Transaction } from './types/crypto';
-import { Search, Plus, Eye, EyeOff, LayoutDashboard, Wallet, PieChart, Compass, Globe, Loader2 } from 'lucide-react';
+import { Search, Plus, Eye, EyeOff, LayoutDashboard, Wallet, PieChart, Compass, Globe, Loader2, DollarSign } from 'lucide-react';
 
 export default function App() {
   const [assets, setAssets] = useState<CryptoAsset[]>(() => {
@@ -25,7 +25,8 @@ export default function App() {
 
   const [selectedAsset, setSelectedAsset] = useState<CryptoAsset | null>(null);
   const [lastUpdated, setLastUpdated] = useState('');
-  
+  const [searchQuery, setSearchQuery] = useState('');
+
   const [activeTab, setActiveTab] = useState<'dashboard' | 'ativos' | 'graficos' | 'estrategia'>(() => {
     return (localStorage.getItem('chainview_active_main_tab') as any) || 'dashboard';
   });
@@ -34,10 +35,16 @@ export default function App() {
     return localStorage.getItem('chainview_sidebar_collapsed') === 'true';
   });
 
-  const [btcMacro, setBtcMacro] = useState<{ price: number, ath: number, drop: number } | null>(null);
+  const [currency, setCurrency] = useState<'USD' | 'BRL'>(() => {
+    return (localStorage.getItem('chainview_currency') as 'USD' | 'BRL') || 'USD';
+  });
+
+  const [btcMacro, setBtcMacro] = useState<{ price: number; ath: number; drop: number } | null>(null);
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
 
   useEffect(() => { localStorage.setItem('chainview_active_main_tab', activeTab); }, [activeTab]);
   useEffect(() => { localStorage.setItem('chainview_sidebar_collapsed', String(isSidebarCollapsed)); }, [isSidebarCollapsed]);
+  useEffect(() => { localStorage.setItem('chainview_currency', currency); }, [currency]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [addModalType, setAddModalType] = useState<'Compra' | 'Venda' | 'Troca'>('Compra');
@@ -54,7 +61,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : false;
   });
 
-  const [portfolios, setPortfolios] = useState<{name: string, color: string}[]>(() => {
+  const [portfolios, setPortfolios] = useState<{ name: string; color: string }[]>(() => {
     const saved = localStorage.getItem('crypto_portfolios_list');
     return saved ? JSON.parse(saved) : [{ name: 'Binance', color: 'bg-gradient-to-br from-yellow-400 to-amber-500' }];
   });
@@ -65,6 +72,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('crypto_portfolio_privacy', JSON.stringify(isPrivacyMode)); }, [isPrivacyMode]);
   useEffect(() => { localStorage.setItem('crypto_portfolios_list', JSON.stringify(portfolios)); }, [portfolios]);
 
+  // Busca do contexto Macro do Bitcoin
   useEffect(() => {
     fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin')
       .then(res => res.json())
@@ -76,6 +84,23 @@ export default function App() {
           setBtcMacro({ price: current, ath, drop });
         }
       }).catch(() => {});
+  }, []);
+
+  // Busca do Dólar em tempo real (AwesomeAPI)
+  useEffect(() => {
+    const fetchDollar = () => {
+      fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.USDBRL && data.USDBRL.bid) {
+            setExchangeRate(parseFloat(data.USDBRL.bid));
+          }
+        })
+        .catch(err => console.warn('Erro ao buscar cotação do BRL:', err));
+    };
+    fetchDollar();
+    const interval = setInterval(fetchDollar, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const safeNum = (n: any) => { const val = Number(n); return (isNaN(val) || !isFinite(val)) ? 0 : val; };
@@ -95,7 +120,7 @@ export default function App() {
     let qty = 0; let invested = 0;
     assetTxs.forEach(t => {
       const tQty = safeNum(t.quantity);
-      const tAmt = safeNum(t.amount); 
+      const tAmt = safeNum(t.amount);
       if (t.type === 'Compra') {
         qty += tQty; invested += tAmt;
       } else {
@@ -117,7 +142,7 @@ export default function App() {
       if (index >= 0) {
         newAssets[index] = { ...newAssets[index], quantity, investedAmount };
       } else {
-        const defaultNames: Record<string, {name: string, symbol: string}> = {
+        const defaultNames: Record<string, { name: string; symbol: string }> = {
           'tether': { name: 'Tether', symbol: 'USDT' },
           'usd-coin': { name: 'USD Coin', symbol: 'USDC' },
           'dai': { name: 'Dai', symbol: 'DAI' },
@@ -144,10 +169,10 @@ export default function App() {
     try {
       const coinIds = assets.map((a) => a.id);
       if (coinIds.length === 0) return;
-      
+
       const res = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinIds.join(',')}&price_change_percentage=24h,7d,30d,1y`);
       const data = await res.json();
-      
+
       if (data && Array.isArray(data)) {
         setAssets((prev) => prev.map((asset) => {
           const coinData = data.find((c: any) => c.id === asset.id);
@@ -158,21 +183,23 @@ export default function App() {
             const change7 = isStable ? 0 : safeNum(coinData.price_change_percentage_7d_in_currency);
             const change30 = isStable ? 0 : safeNum(coinData.price_change_percentage_30d_in_currency);
             const change1ano = isStable ? 0 : safeNum(coinData.price_change_percentage_1y_in_currency);
-            
-            return { 
-              ...asset, 
+
+            return {
+              ...asset,
               imageUrl: coinData.image,
-              currentPrice: price > 0 ? price : asset.currentPrice, 
+              currentPrice: price > 0 ? price : asset.currentPrice,
+              ath: isStable ? 1 : safeNum(coinData.ath),
+              athChangePct: isStable ? 0 : safeNum(coinData.ath_change_percentage),
               trend: change24 > 5 ? 'Alta Forte' : change24 > 0 ? 'Alta' : 'Baixa',
               change24h: change24,
               change7d: change7,
               change30d: change30,
-              change1y: change1ano 
+              change1y: change1ano
             };
           }
           return asset;
         }));
-        setLastUpdated(new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        setLastUpdated(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       }
     } catch (e) { console.warn("Erro API Mercado", e); }
   };
@@ -210,10 +237,10 @@ export default function App() {
           alert('Backup importado com sucesso!');
           setTimeout(updatePrices, 500);
         } else {
-          alert('Ficheiro JSON inválido.');
+          alert('Arquivo JSON inválido.');
         }
       } catch (error) {
-        alert('Erro ao ler o ficheiro.');
+        alert('Erro ao ler o arquivo.');
       }
     };
     reader.readAsText(file);
@@ -243,7 +270,7 @@ export default function App() {
         wallet: walletName
       };
       const txIn: Transaction = {
-        id: `tx-in-${Date.now()+1}`,
+        id: `tx-in-${Date.now() + 1}`,
         assetId: newEntry.id,
         type: 'Compra',
         date: formattedDate,
@@ -257,7 +284,7 @@ export default function App() {
       const newTx: Transaction = {
         id: `tx-${Date.now()}`,
         assetId: newEntry.id,
-        type: type as 'Compra'|'Venda',
+        type: type as 'Compra' | 'Venda',
         date: formattedDate,
         amount: safeNum(newEntry.investedAmount),
         priceAtDate: calculatedPrice > 0 ? calculatedPrice : 1,
@@ -281,7 +308,7 @@ export default function App() {
         id: `tx-consolidated-${Date.now()}`,
         assetId: assetId,
         type: 'Compra',
-        date: new Date().toLocaleDateString('pt-PT'),
+        date: new Date().toLocaleDateString('pt-BR'),
         amount: safeNum(newInvested),
         priceAtDate: safeNum(newQuantity) > 0 ? safeNum(newInvested) / safeNum(newQuantity) : 0,
         quantity: safeNum(newQuantity),
@@ -310,7 +337,7 @@ export default function App() {
   };
 
   const handleCreatePortfolio = () => {
-    const name = window.prompt('Introduza o nome da nova carteira (ex: Phantom, Kraken):');
+    const name = window.prompt('Digite o nome da nova carteira (ex: Phantom, Kraken):');
     if (!name || name.trim() === '') return;
     if (portfolios.some(p => p.name.toLowerCase() === name.toLowerCase())) { alert('Já existe uma carteira com esse nome!'); return; }
     const colors = ['bg-gradient-to-br from-blue-500 to-purple-500', 'bg-gradient-to-br from-emerald-400 to-teal-500', 'bg-gradient-to-br from-rose-500 to-orange-500', 'bg-gradient-to-br from-indigo-500 to-blue-500', 'bg-gradient-to-br from-amber-500 to-red-500'];
@@ -344,8 +371,8 @@ export default function App() {
     return { ...p, balance: Math.max(0, balance) };
   });
 
-  const displayedAssets = (activePortfolio === null 
-    ? assets.filter(a => safeNum(a.quantity) > 0.000001) 
+  const displayedAssets = (activePortfolio === null
+    ? assets.filter(a => safeNum(a.quantity) > 0.000001)
     : assets.map(a => {
         const { quantity, investedAmount } = calculateAssetBalances(a.id, transactions.filter(t => t.wallet === activePortfolio));
         return { ...a, quantity, investedAmount };
@@ -356,6 +383,10 @@ export default function App() {
       ...a,
       currentPrice: isStable ? 1 : a.currentPrice
     };
+  }).filter(a => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return a.name.toLowerCase().includes(q) || a.symbol.toLowerCase().includes(q);
   }).sort((a, b) => {
     const isStableA = ['tether', 'usd-coin', 'dai', 'usdt', 'usdc'].includes(a.id.toLowerCase()) || ['USDT', 'USDC', 'DAI'].includes(a.symbol.toUpperCase());
     const isStableB = ['tether', 'usd-coin', 'dai', 'usdt', 'usdc'].includes(b.id.toLowerCase()) || ['USDT', 'USDC', 'DAI'].includes(b.symbol.toUpperCase());
@@ -379,31 +410,78 @@ export default function App() {
 
   const activeSelectedAsset = selectedAsset ? displayedAssets.find((a) => a.id === selectedAsset.id) || selectedAsset : null;
 
+  // Padrão de Valuation da Fibo (Foco em preço e oportunidade)
+  const getFiboValuation = (drop: number) => {
+    if (drop <= -78.6) return { label: '0.786 • Desconto Extremo', badgeClass: 'bg-purple-500/15 text-purple-400 border-purple-500/30' };
+    if (drop <= -61.8) return { label: '0.618 • Desconto Ideal', badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30' };
+    if (drop <= -50.0) return { label: '0.5 • Preço Justo', badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
+    if (drop <= -38.2) return { label: 'Zona de Aproximação (0.382)', badgeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30' };
+    return { label: 'Acima do Preço Justo', badgeClass: 'bg-rose-500/15 text-rose-400 border-rose-500/30' };
+  };
+
+  // Formatadores dinâmicos USD <-> BRL
+  const isBrlActive = currency === 'BRL' && !!exchangeRate;
+
+  const formatMoney = (usdValue: number, targetCurrency: 'USD' | 'BRL' = isBrlActive ? 'BRL' : 'USD', signed = false) => {
+    const rate = targetCurrency === 'BRL' && exchangeRate ? exchangeRate : 1;
+    const converted = usdValue * rate;
+    const sign = signed ? (converted > 0 ? '+' : converted < 0 ? '-' : '') : (converted < 0 ? '-' : '');
+    const abs = Math.abs(converted);
+
+    if (targetCurrency === 'BRL') {
+      return `${sign}R$ ${abs.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    return `${sign}$${abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const formatSecondaryMoney = (usdValue: number, signed = false) => {
+    if (!exchangeRate) return '';
+    const secondaryCurrency = isBrlActive ? 'USD' : 'BRL';
+    return `≈ ${formatMoney(usdValue, secondaryCurrency, signed)}`;
+  };
+
   const renderDashboardStats = () => {
     return (
       <div className="flex flex-col md:flex-row justify-between items-center bg-[#121824] border border-slate-800/80 rounded-xl px-8 py-5 shadow-lg gap-6 mb-5">
-        <div className="flex-1 text-center md:text-left border-b md:border-b-0 md:border-r border-slate-800/80 pb-4 md:pb-0">
+        <div className="flex-1 text-center md:text-left border-b md:border-b-0 md:border-r border-slate-800/80 pb-4 md:pb-0 flex flex-col justify-center">
           <div className="text-[11px] text-slate-500 uppercase font-bold mb-1">Aportes Totais</div>
-          <div className="text-2xl font-bold text-white">
-            {isPrivacyMode ? '••••••' : `$${totalInvested.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          <div className="text-2xl font-bold text-white leading-tight">
+            {isPrivacyMode ? '••••••' : formatMoney(totalInvested)}
           </div>
+          {!isPrivacyMode && exchangeRate && (
+            <div className="text-[11px] font-medium text-slate-500 mt-1 tracking-wide">
+              {formatSecondaryMoney(totalInvested)}
+            </div>
+          )}
         </div>
-        <div className="flex-1 text-center md:text-left border-b md:border-b-0 md:border-r border-slate-800/80 pb-4 md:pb-0">
+
+        <div className="flex-1 text-center md:text-left border-b md:border-b-0 md:border-r border-slate-800/80 pb-4 md:pb-0 flex flex-col justify-center">
           <div className="text-[11px] text-slate-500 uppercase font-bold mb-1">Saldo em Carteira</div>
-          <div className="text-3xl font-black text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.2)]">
-            {isPrivacyMode ? '••••••' : `$${currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          <div className="text-3xl font-black text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.2)] leading-tight">
+            {isPrivacyMode ? '••••••' : formatMoney(currentBalance)}
           </div>
+          {!isPrivacyMode && exchangeRate && (
+            <div className="text-xs font-medium text-emerald-500/60 mt-1 tracking-wide">
+              {formatSecondaryMoney(currentBalance)}
+            </div>
+          )}
         </div>
-        <div className="flex-1 text-center md:text-left">
+
+        <div className="flex-1 text-center md:text-left flex flex-col justify-center">
           <div className="text-[11px] text-slate-500 uppercase font-bold mb-1">Rentabilidade Líquida</div>
-          <div className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <div className={`text-2xl font-bold leading-tight ${totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {isPrivacyMode ? '••••••' : (
               <>
-                {totalProfit >= 0 ? '+' : ''}${totalProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
+                {formatMoney(totalProfit, isBrlActive ? 'BRL' : 'USD', true)}
                 <span className="text-sm font-medium ml-2 opacity-80">({profitPercentage > 0 ? '+' : ''}{profitPercentage.toFixed(2)}%)</span>
               </>
             )}
           </div>
+          {!isPrivacyMode && exchangeRate && (
+            <div className={`text-[11px] font-medium mt-1 tracking-wide ${totalProfit >= 0 ? 'text-emerald-500/60' : 'text-rose-500/60'}`}>
+              {formatSecondaryMoney(totalProfit, true)}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -411,14 +489,14 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-[#0b0e14] overflow-hidden text-slate-100 font-sans selection:bg-emerald-500/30">
-      <Sidebar 
-        totalBalance={grandTotalBalance} 
-        portfolios={sidebarPortfolios} 
-        activePortfolio={activePortfolio} 
-        onSelectPortfolio={setActivePortfolio} 
-        onCreatePortfolio={handleCreatePortfolio} 
-        onDeletePortfolio={handleDeletePortfolio} 
-        isPrivacyMode={isPrivacyMode} 
+      <Sidebar
+        totalBalance={grandTotalBalance}
+        portfolios={sidebarPortfolios}
+        activePortfolio={activePortfolio}
+        onSelectPortfolio={setActivePortfolio}
+        onCreatePortfolio={handleCreatePortfolio}
+        onDeletePortfolio={handleDeletePortfolio}
+        isPrivacyMode={isPrivacyMode}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         onExport={handleExport}
@@ -432,17 +510,61 @@ export default function App() {
               <h1 className="text-xl font-bold tracking-tight text-white">{activePortfolio ? `Portfolio: ${activePortfolio}` : 'Visão Geral'}</h1>
               <div className="relative">
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                <input type="text" placeholder="Pesquisar ativos..." className="bg-[#121824] border border-slate-800/80 rounded-lg pl-10 pr-4 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 w-64 shadow-inner" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Pesquisar ativos..."
+                  className="bg-[#121824] border border-slate-800/80 rounded-lg pl-10 pr-4 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 w-64 shadow-inner"
+                />
               </div>
             </div>
 
-            <div className="flex items-center gap-3.5">
-              {lastUpdated && <span className="text-xs text-slate-500 hidden sm:inline font-mono mr-4">Atualizado às {lastUpdated}</span>}
-              
+            <div className="flex items-center gap-3">
+              {/* Cotação do Dólar Atual */}
+              {exchangeRate && (
+                <div className="hidden md:flex items-center gap-1.5 bg-[#121824] border border-slate-800/80 px-3 py-1.5 rounded-lg text-xs">
+                  <DollarSign size={13} className="text-emerald-400" />
+                  <span className="text-slate-400 font-medium">USD/BRL:</span>
+                  <span className="text-white font-bold font-mono">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(exchangeRate)}
+                  </span>
+                </div>
+              )}
+
+              {/* Botão Alternador USD / BRL */}
+              <div className="flex items-center bg-[#121824] border border-slate-800/80 p-0.5 rounded-lg" title="Alternar moeda de exibição">
+                <button
+                  type="button"
+                  onClick={() => setCurrency('USD')}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
+                    currency === 'USD'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-500 hover:text-slate-300 border border-transparent'
+                  }`}
+                >
+                  USD
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrency('BRL')}
+                  disabled={!exchangeRate}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all disabled:opacity-40 ${
+                    currency === 'BRL'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-500 hover:text-slate-300 border border-transparent'
+                  }`}
+                >
+                  BRL
+                </button>
+              </div>
+
+              {lastUpdated && <span className="text-xs text-slate-500 hidden xl:inline font-mono">Atualizado às {lastUpdated}</span>}
+
               <button onClick={() => setIsPrivacyMode(!isPrivacyMode)} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-lg transition" title={isPrivacyMode ? "Mostrar Valores" : "Ocultar Valores"}>
                 {isPrivacyMode ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
-              <button onClick={() => { setAddModalType('Compra'); setAddModalSource(undefined); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-semibold text-xs shadow-lg shadow-emerald-500/10 active:scale-95 ml-2">
+              <button onClick={() => { setAddModalType('Compra'); setAddModalSource(undefined); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-semibold text-xs shadow-lg shadow-emerald-500/10 active:scale-95">
                 <Plus size={15} /> Nova Transação
               </button>
             </div>
@@ -452,7 +574,16 @@ export default function App() {
         <div className="flex-1 flex justify-center w-full">
           <section className="p-8 w-full max-w-[1700px]">
             {activeSelectedAsset ? (
-              <TransactionHistory asset={activeSelectedAsset} transactions={displayedTransactions} onBack={() => setSelectedAsset(null)} onOpenAddModal={() => setIsModalOpen(true)} onDeleteTransaction={handleDeleteTransaction} onEditTransaction={(tx) => { setEditingTransaction(tx); setIsEditModalOpen(true); }} />
+              <TransactionHistory
+                asset={activeSelectedAsset}
+                transactions={displayedTransactions}
+                currency={currency}
+                exchangeRate={exchangeRate}
+                onBack={() => setSelectedAsset(null)}
+                onOpenAddModal={() => setIsModalOpen(true)}
+                onDeleteTransaction={handleDeleteTransaction}
+                onEditTransaction={(tx) => { setEditingTransaction(tx); setIsEditModalOpen(true); }}
+              />
             ) : (
               <>
                 <div className="flex items-center gap-8 border-b border-slate-800/80 mb-6 w-fit">
@@ -470,79 +601,93 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* ABA HUD AMPLIADA SEM SCROLL */}
+                {/* ABA RESUMO GERAL */}
                 {activeTab === 'dashboard' && (
                   <div className="w-full flex flex-col gap-5 animate-in fade-in duration-300">
                     {renderDashboardStats()}
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                      
-                      {/* Fibo Ampliado */}
+                      {/* Termômetro Fibo - Padrão de Valuation */}
                       <div className="bg-[#121824] border border-slate-800/80 rounded-xl p-6 shadow-lg h-[260px] flex flex-col justify-between">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2">
                           <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                            <Globe size={16} className="text-blue-500" /> Termómetro Fibo (BTC)
+                            <Globe size={16} className="text-blue-500" /> Valuation Fibo (BTC)
                           </h3>
                           {btcMacro && (
-                            <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${btcMacro.drop < -38.2 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${getFiboValuation(btcMacro.drop).badgeClass}`}>
                               {btcMacro.drop.toFixed(2)}%
                             </span>
                           )}
                         </div>
 
                         {btcMacro ? (
-                          <div className="my-auto py-2">
-                             <div className="text-4xl font-black text-white mb-4 tracking-tight">${btcMacro.price.toLocaleString()}</div>
-                             <div className="relative h-3 w-full bg-slate-800 rounded-full overflow-hidden flex shadow-inner mb-3">
-                               <div className="h-full bg-rose-500" style={{width: '38.2%'}}></div>
-                               <div className="h-full bg-amber-500" style={{width: '11.8%'}}></div>
-                               <div className="h-full bg-emerald-500" style={{width: '11.8%'}}></div>
-                               <div className="h-full bg-indigo-500" style={{width: '16.8%'}}></div>
-                               <div className="h-full bg-purple-500" style={{width: '21.4%'}}></div>
-                               <div className="absolute top-0 w-1.5 h-full bg-white shadow-lg" style={{ left: `calc(${Math.min(100, Math.max(0, Math.abs(btcMacro.drop)))}% - 3px)` }}></div>
-                             </div>
-                             <div className="text-[10px] text-slate-400 text-center font-bold uppercase tracking-widest">
-                               Distância do Topo Histórico (ATH)
-                             </div>
+                          <div className="my-auto py-1">
+                            <div className="flex items-baseline justify-between mb-3">
+                              <div className="text-3xl font-black text-white tracking-tight">
+                                {isBrlActive && exchangeRate
+                                  ? `R$ ${Math.round(btcMacro.price * exchangeRate).toLocaleString('pt-BR')}`
+                                  : `$${btcMacro.price.toLocaleString('en-US')}`}
+                              </div>
+                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${getFiboValuation(btcMacro.drop).badgeClass}`}>
+                                {getFiboValuation(btcMacro.drop).label}
+                              </span>
+                            </div>
+
+                            <div className="relative h-3 w-full bg-slate-800 rounded-full overflow-hidden flex shadow-inner mb-3">
+                              <div className="h-full bg-rose-500" style={{ width: '38.2%' }} title="Acima do Preço Justo"></div>
+                              <div className="h-full bg-amber-500" style={{ width: '11.8%' }} title="Aproximação (0.382 - 0.5)"></div>
+                              <div className="h-full bg-emerald-500" style={{ width: '11.8%' }} title="0.5: Preço Justo"></div>
+                              <div className="h-full bg-indigo-500" style={{ width: '16.8%' }} title="0.618: Desconto Ideal"></div>
+                              <div className="h-full bg-purple-500" style={{ width: '21.4%' }} title="0.786: Desconto Extremo"></div>
+                              <div
+                                className="absolute top-0 w-1.5 h-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]"
+                                style={{ left: `calc(${Math.min(100, Math.max(0, Math.abs(btcMacro.drop)))}% - 3px)` }}
+                              ></div>
+                            </div>
+
+                            <div className="flex justify-between text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                              <span className="text-emerald-400">0.5 Preço Justo</span>
+                              <span className="text-indigo-400">0.618 Ideal</span>
+                              <span className="text-purple-400">0.786 Extremo</span>
+                            </div>
                           </div>
                         ) : (
-                           <Loader2 className="animate-spin text-slate-500 mx-auto my-auto" />
+                          <Loader2 className="animate-spin text-slate-500 mx-auto my-auto" />
                         )}
                       </div>
 
-                      {/* Distribuição Compacta Ampliada */}
                       <div className="h-[260px]">
                         <AllocationChart assets={displayedAssets} variant="compact" />
                       </div>
 
-                      {/* Radar de Sentimento Ampliado */}
                       <div className="h-[260px]">
                         <MarketIndicators assets={displayedAssets} variant="compact" />
                       </div>
-
                     </div>
 
-                    {/* Top 5 Movimentações Ampliado (Mantido apenas no Resumo Geral) */}
                     <div className="mt-1">
                       <TopPerformers assets={displayedAssets} />
                     </div>
-
                   </div>
                 )}
 
-                {/* OUTRAS ABAS */}
+                {/* ABA MEUS ATIVOS */}
                 {activeTab === 'ativos' && (
                   <div className="space-y-6 animate-in fade-in duration-300">
-                    <PortfolioTable 
-                      assets={displayedAssets} 
-                      onRemove={handleRemoveAsset} 
-                      onSelectAsset={(asset) => setSelectedAsset(asset)} 
+                    <PortfolioTable
+                      assets={displayedAssets}
+                      isPrivacyMode={isPrivacyMode}
+                      currency={currency}
+                      exchangeRate={exchangeRate}
+                      onRemove={handleRemoveAsset}
+                      onSelectAsset={(asset) => setSelectedAsset(asset)}
                       onEditAsset={(asset) => { setAssetToEdit(asset); setIsEditAssetModalOpen(true); }}
                       onSwapAsset={(asset) => { setAddModalSource(asset); setAddModalType('Troca'); setIsModalOpen(true); }}
                     />
                   </div>
                 )}
 
+                {/* ABA GRÁFICOS & RADAR */}
                 {activeTab === 'graficos' && (
                   <div className="space-y-6 animate-in fade-in duration-300">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -553,10 +698,10 @@ export default function App() {
                         <MarketIndicators assets={displayedAssets} variant="full" />
                       </div>
                     </div>
-                    {/* TopPerformers removido daqui conforme solicitado */}
                   </div>
                 )}
 
+                {/* ABA ESTRATÉGIA ANALÍTICA */}
                 {activeTab === 'estrategia' && (
                   <div className="animate-in fade-in duration-300">
                     <PortfolioStrategy assets={displayedAssets} />
@@ -568,17 +713,17 @@ export default function App() {
         </div>
       </main>
 
-      <AddAssetModal 
-        isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); setAddModalSource(undefined); setAddModalType('Compra'); }} 
-        onAdd={handleAddAsset} 
-        wallets={portfolios.map(p => p.name)} 
-        defaultWallet={activePortfolio || (portfolios.length > 0 ? portfolios[0].name : 'Sem Carteira')} 
+      <AddAssetModal
+        isOpen={isModalOpen}
+        onClose={() => { setIsModalOpen(false); setAddModalSource(undefined); setAddModalType('Compra'); }}
+        onAdd={handleAddAsset}
+        wallets={portfolios.map(p => p.name)}
+        defaultWallet={activePortfolio || (portfolios.length > 0 ? portfolios[0].name : 'Sem Carteira')}
         initialType={addModalType}
         sourceAsset={addModalSource}
       />
       <EditTransactionModal isOpen={isEditModalOpen} transaction={editingTransaction} onClose={() => { setIsEditModalOpen(false); setEditingTransaction(null); }} onSave={handleSaveEditedTransaction} />
-      
+
       <EditAssetModal
         isOpen={isEditAssetModalOpen}
         asset={assetToEdit}

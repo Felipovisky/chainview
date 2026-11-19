@@ -5,6 +5,9 @@ export interface CryptoAsset {
   quantity: number;
   investedAmount: number;
   currentPrice: number;
+  imageUrl?: string;
+  ath?: number;
+  athChangePct?: number;
   trend?: string;
   change24h?: number;
   change7d?: number;
