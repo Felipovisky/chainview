@@ -9,10 +9,33 @@ import { AddAssetModal } from './components/AddAssetModal';
 import { EditTransactionModal } from './components/EditTransactionModal';
 import { EditAssetModal } from './components/EditAssetModal';
 import { TransactionHistory } from './components/TransactionHistory';
+import { LoginView } from './components/LoginView';
+import { FiboExecutionZones } from './components/FiboExecutionZones';
 import type { CryptoAsset, Transaction } from './types/crypto';
-import { Search, Plus, Eye, EyeOff, LayoutDashboard, Wallet, PieChart, Compass, Globe, Loader2, DollarSign } from 'lucide-react';
+import {
+  Search, Plus, Eye, EyeOff, LayoutDashboard, Wallet,
+  PieChart, Compass, Globe, Loader2, DollarSign, LogOut,
+  Radar, Layers
+} from 'lucide-react';
+
+type MainTab = 'dashboard' | 'ativos' | 'distribuicao' | 'radar' | 'fibo' | 'estrategia';
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<{ name: string; email: string; isDemo?: boolean } | null>(() => {
+    const saved = localStorage.getItem('chainview_active_session');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const handleLoginSuccess = (user: { name: string; email: string; isDemo?: boolean }) => {
+    localStorage.setItem('chainview_active_session', JSON.stringify(user));
+    setCurrentUser(user);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('chainview_active_session');
+    setCurrentUser(null);
+  };
+
   const [assets, setAssets] = useState<CryptoAsset[]>(() => {
     const saved = localStorage.getItem('crypto_portfolio_assets');
     return saved ? JSON.parse(saved) : [];
@@ -27,8 +50,20 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'ativos' | 'graficos' | 'estrategia'>(() => {
-    return (localStorage.getItem('chainview_active_main_tab') as any) || 'dashboard';
+  const [activeTab, setActiveTab] = useState<MainTab>(() => {
+    const saved = localStorage.getItem('chainview_active_main_tab');
+    if (saved === 'graficos') return 'distribuicao';
+    if (
+      saved === 'dashboard' ||
+      saved === 'ativos' ||
+      saved === 'distribuicao' ||
+      saved === 'radar' ||
+      saved === 'fibo' ||
+      saved === 'estrategia'
+    ) {
+      return saved;
+    }
+    return 'dashboard';
   });
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -209,6 +244,10 @@ export default function App() {
     const interval = setInterval(updatePrices, 60000);
     return () => clearInterval(interval);
   }, [assets.length]);
+
+  if (!currentUser) {
+    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+  }
 
   const handleExport = () => {
     const data = { transactions, assets, portfolios };
@@ -410,7 +449,6 @@ export default function App() {
 
   const activeSelectedAsset = selectedAsset ? displayedAssets.find((a) => a.id === selectedAsset.id) || selectedAsset : null;
 
-  // Padrão de Valuation da Fibo (Foco em preço e oportunidade)
   const getFiboValuation = (drop: number) => {
     if (drop <= -78.6) return { label: '0.786 • Desconto Extremo', badgeClass: 'bg-purple-500/15 text-purple-400 border-purple-500/30' };
     if (drop <= -61.8) return { label: '0.618 • Desconto Ideal', badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30' };
@@ -419,7 +457,6 @@ export default function App() {
     return { label: 'Acima do Preço Justo', badgeClass: 'bg-rose-500/15 text-rose-400 border-rose-500/30' };
   };
 
-  // Formatadores dinâmicos USD <-> BRL
   const isBrlActive = currency === 'BRL' && !!exchangeRate;
 
   const formatMoney = (usdValue: number, targetCurrency: 'USD' | 'BRL' = isBrlActive ? 'BRL' : 'USD', signed = false) => {
@@ -521,7 +558,6 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Cotação do Dólar Atual */}
               {exchangeRate && (
                 <div className="hidden md:flex items-center gap-1.5 bg-[#121824] border border-slate-800/80 px-3 py-1.5 rounded-lg text-xs">
                   <DollarSign size={13} className="text-emerald-400" />
@@ -532,7 +568,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* Botão Alternador USD / BRL */}
               <div className="flex items-center bg-[#121824] border border-slate-800/80 p-0.5 rounded-lg" title="Alternar moeda de exibição">
                 <button
                   type="button"
@@ -564,8 +599,18 @@ export default function App() {
               <button onClick={() => setIsPrivacyMode(!isPrivacyMode)} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-lg transition" title={isPrivacyMode ? "Mostrar Valores" : "Ocultar Valores"}>
                 {isPrivacyMode ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
+
               <button onClick={() => { setAddModalType('Compra'); setAddModalSource(undefined); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-semibold text-xs shadow-lg shadow-emerald-500/10 active:scale-95">
                 <Plus size={15} /> Nova Transação
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                title={`Sair (${currentUser.name})`}
+              >
+                <LogOut size={18} />
               </button>
             </div>
           </div>
@@ -586,28 +631,73 @@ export default function App() {
               />
             ) : (
               <>
-                <div className="flex items-center gap-8 border-b border-slate-800/80 mb-6 w-fit">
-                  <button onClick={() => setActiveTab('dashboard')} className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'dashboard' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+                <div className="flex flex-wrap items-center gap-6 border-b border-slate-800/80 mb-6 w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('dashboard')}
+                    className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'dashboard' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
                     <LayoutDashboard size={16} /> Resumo Geral
                   </button>
-                  <button onClick={() => setActiveTab('ativos')} className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'ativos' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('ativos')}
+                    className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'ativos' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
                     <Wallet size={16} /> Meus Ativos
                   </button>
-                  <button onClick={() => setActiveTab('graficos')} className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'graficos' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
-                    <PieChart size={16} /> Gráficos & Radar
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('distribuicao')}
+                    className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'distribuicao' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    <PieChart size={16} /> Distribuição
                   </button>
-                  <button onClick={() => setActiveTab('estrategia')} className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'estrategia' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
-                    <Compass size={16} /> Estratégia Analítica
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('radar')}
+                    className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'radar' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    <Radar size={16} /> Radar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('fibo')}
+                    className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'fibo' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    <Layers size={16} /> Faixas Fibo
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('estrategia')}
+                    className={`flex items-center gap-2 pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'estrategia' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    <Compass size={16} /> Estratégia
                   </button>
                 </div>
 
-                {/* ABA RESUMO GERAL */}
                 {activeTab === 'dashboard' && (
                   <div className="w-full flex flex-col gap-5 animate-in fade-in duration-300">
                     {renderDashboardStats()}
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                      {/* Termômetro Fibo - Padrão de Valuation */}
                       <div className="bg-[#121824] border border-slate-800/80 rounded-xl p-6 shadow-lg h-[260px] flex flex-col justify-between">
                         <div className="flex items-center justify-between gap-2">
                           <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -671,7 +761,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ABA MEUS ATIVOS */}
                 {activeTab === 'ativos' && (
                   <div className="space-y-6 animate-in fade-in duration-300">
                     <PortfolioTable
@@ -687,21 +776,29 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ABA GRÁFICOS & RADAR */}
-                {activeTab === 'graficos' && (
-                  <div className="space-y-6 animate-in fade-in duration-300">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <div className="h-[550px]">
-                        <AllocationChart assets={displayedAssets} variant="full" />
-                      </div>
-                      <div className="h-[550px]">
-                        <MarketIndicators assets={displayedAssets} variant="full" />
-                      </div>
-                    </div>
+                {activeTab === 'distribuicao' && (
+                  <div className="min-h-[520px] animate-in fade-in duration-300">
+                    <AllocationChart assets={displayedAssets} variant="full" />
                   </div>
                 )}
 
-                {/* ABA ESTRATÉGIA ANALÍTICA */}
+                {activeTab === 'radar' && (
+                  <div className="min-h-[520px] animate-in fade-in duration-300">
+                    <MarketIndicators assets={displayedAssets} variant="full" />
+                  </div>
+                )}
+
+                {activeTab === 'fibo' && (
+                  <div className="animate-in fade-in duration-300">
+                    <FiboExecutionZones
+                      assets={displayedAssets}
+                      transactions={displayedTransactions}
+                      currency={currency}
+                      exchangeRate={exchangeRate}
+                    />
+                  </div>
+                )}
+
                 {activeTab === 'estrategia' && (
                   <div className="animate-in fade-in duration-300">
                     <PortfolioStrategy assets={displayedAssets} />

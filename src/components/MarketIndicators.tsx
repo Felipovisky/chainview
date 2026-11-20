@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Gauge, Target, ArrowDownToLine, Loader2 } from 'lucide-react';
+import { Target, ArrowDownToLine } from 'lucide-react';
 import type { CryptoAsset } from '../types/crypto';
 
 interface Props {
@@ -8,71 +8,16 @@ interface Props {
 }
 
 export const MarketIndicators: React.FC<Props> = ({ assets, variant = 'full' }) => {
-  const [activeTab, setActiveTab] = useState<'sentimento' | 'recompras' | 'fundo'>(() => {
-    return (localStorage.getItem('chainview_market_tab') as any) || 'sentimento';
+  const [activeTab, setActiveTab] = useState<'recompras' | 'fundo'>(() => {
+    const saved = localStorage.getItem('chainview_market_tab');
+    return saved === 'fundo' ? 'fundo' : 'recompras';
   });
 
   useEffect(() => {
     localStorage.setItem('chainview_market_tab', activeTab);
   }, [activeTab]);
 
-  const [fngValue, setFngValue] = useState(50);
-  const [fngText, setFngText] = useState('NEUTRO');
-  const [isLoadingFng, setIsLoadingFng] = useState(true);
   const [athData, setAthData] = useState<Record<string, number>>({});
-
-  const getCategoryText = (val: number) => {
-    if (val < 20) return "MEDO EXTREMO";
-    if (val < 40) return "MEDO";
-    if (val < 60) return "NEUTRO";
-    if (val < 80) return "GANÂNCIA";
-    return "GANÂNCIA EXTREMA";
-  };
-
-  const getFngColor = (val: number) => {
-    if (val < 20) return "#ef4444";
-    if (val < 40) return "#f97316";
-    if (val < 60) return "#eab308";
-    if (val < 80) return "#84cc16";
-    return "#22c55e";
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchFearAndGreed = async () => {
-      try {
-        // Uso do AllOrigins Proxy para contornar o bloqueio de CORS da Vercel
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
-        const targetUrl = encodeURIComponent('https://api.alternative.me/fng/?limit=1');
-        
-        const res = await fetch(proxyUrl + targetUrl);
-        const data = await res.json();
-        
-        if (isMounted && data && data.data && data.data[0]) {
-          const val = parseInt(data.data[0].value, 10);
-          setFngValue(val);
-          setFngText(getCategoryText(val));
-        }
-      } catch (e) {
-        console.warn("Proxy também falhou, usando fallback do BTC:", e);
-        try {
-          const btcRes = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin&price_change_percentage=24h');
-          const btcData = await btcRes.json();
-          if (isMounted && btcData && btcData[0]) {
-            const change24h = btcData[0].price_change_percentage_24h || 0;
-            let calculatedVal = Math.round(50 + (change24h * 4));
-            calculatedVal = Math.max(5, Math.min(95, calculatedVal));
-            setFngValue(calculatedVal);
-            setFngText(getCategoryText(calculatedVal));
-          }
-        } catch (err) {}
-      } finally {
-        if (isMounted) setIsLoadingFng(false);
-      }
-    };
-    fetchFearAndGreed();
-    return () => { isMounted = false; };
-  }, []);
 
   useEffect(() => {
     if (variant === 'compact') return;
@@ -94,59 +39,10 @@ export const MarketIndicators: React.FC<Props> = ({ assets, variant = 'full' }) 
     fetchAth();
   }, [assets.map(a => a.id).join(','), variant]);
 
-  const createArc = (cx: number, cy: number, r: number, startAngle: number, endAngle: number) => {
-    const start = {
-      x: cx + r * Math.cos(startAngle * Math.PI / 180),
-      y: cy + r * Math.sin(startAngle * Math.PI / 180)
-    };
-    const end = {
-      x: cx + r * Math.cos(endAngle * Math.PI / 180),
-      y: cy + r * Math.sin(endAngle * Math.PI / 180)
-    };
-    return `M ${start.x} ${start.y} A ${r} ${r} 0 0 1 ${end.x} ${end.y}`;
+  const safeNum = (n: any) => {
+    const val = Number(n);
+    return isNaN(val) ? 0 : val;
   };
-
-  const fngColor = getFngColor(fngValue);
-  const angle = 180 + (fngValue / 100) * 180;
-
-  if (variant === 'compact') {
-    const cx = 150, cy = 105, r = 85;
-    const dotX = cx + r * Math.cos(angle * Math.PI / 180);
-    const dotY = cy + r * Math.sin(angle * Math.PI / 180);
-
-    return (
-      <div className="bg-[#121824] border border-slate-800/80 rounded-xl p-6 shadow-lg h-full flex flex-col justify-between items-center overflow-hidden">
-        <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 w-full mb-1">
-          <Gauge size={16} className="text-rose-400" /> Sentimento (Radar)
-        </h3>
-        
-        {isLoadingFng ? (
-          <div className="my-auto"><Loader2 className="animate-spin text-slate-500" size={32} /></div>
-        ) : (
-          <div className="relative w-full max-w-[230px] my-auto">
-            <svg viewBox="0 0 300 135" className="w-full h-auto drop-shadow-md">
-              <path d={createArc(cx, cy, r, 180, 213)} fill="none" stroke="#ef4444" strokeWidth="18" strokeLinecap="round" />
-              <path d={createArc(cx, cy, r, 217, 250)} fill="none" stroke="#f97316" strokeWidth="18" strokeLinecap="round" />
-              <path d={createArc(cx, cy, r, 254, 287)} fill="none" stroke="#eab308" strokeWidth="18" strokeLinecap="round" />
-              <path d={createArc(cx, cy, r, 291, 324)} fill="none" stroke="#84cc16" strokeWidth="18" strokeLinecap="round" />
-              <path d={createArc(cx, cy, r, 328, 360)} fill="none" stroke="#22c55e" strokeWidth="18" strokeLinecap="round" />
-              <circle cx={dotX} cy={dotY} r="8" fill="white" stroke={fngColor} strokeWidth="3" />
-            </svg>
-            <div className="absolute top-[52px] left-1/2 -translate-x-1/2 text-center w-full">
-              <div className="text-5xl font-black text-white leading-none tracking-tight">{fngValue}</div>
-              <div className="text-[11px] font-bold uppercase tracking-wider mt-2 truncate px-2" style={{ color: fngColor }}>
-                {fngText}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  const safeNum = (n: any) => { const val = Number(n); return isNaN(val) ? 0 : val; };
-  const dotXFull = 150 + 90 * Math.cos(angle * Math.PI / 180);
-  const dotYFull = 120 + 90 * Math.sin(angle * Math.PI / 180);
 
   const getRecompras = () => {
     return assets
@@ -167,7 +63,7 @@ export const MarketIndicators: React.FC<Props> = ({ assets, variant = 'full' }) 
     return assets
       .filter(a => !['tether', 'usd-coin', 'dai', 'usdt', 'usdc'].includes(a.id.toLowerCase()))
       .map(a => {
-        const ath = athData[a.id] || 0;
+        const ath = athData[a.id] || safeNum(a.ath) || 0;
         const current = safeNum(a.currentPrice);
         const drop = (ath > 0 && current > 0) ? ((current - ath) / ath) * 100 : 0;
         return { ...a, ath, drop };
@@ -176,85 +72,126 @@ export const MarketIndicators: React.FC<Props> = ({ assets, variant = 'full' }) 
       .sort((a, b) => a.drop - b.drop);
   };
 
-  const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(val);
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    }).format(val);
+
+  if (variant === 'compact') {
+    const recompras = getRecompras();
+    return (
+      <div className="bg-[#121824] border border-slate-800/80 rounded-xl p-6 shadow-lg h-full flex flex-col justify-between">
+        <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 w-full mb-3">
+          <Target size={16} className="text-emerald-400" /> Oportunidades (PM)
+        </h3>
+
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+          {recompras.length === 0 ? (
+            <div className="text-center text-slate-500 text-xs my-auto">
+              Nenhum ativo com desconto superior a 3% em relação ao preço médio.
+            </div>
+          ) : (
+            recompras.slice(0, 3).map(asset => (
+              <div
+                key={asset.id}
+                className="flex items-center justify-between px-3 py-2 bg-[#0b0e14] border border-slate-800/80 rounded-lg"
+              >
+                <span className="font-bold text-slate-200 text-xs">{asset.symbol}</span>
+                <span className="font-bold text-emerald-400 text-xs font-mono tabular-nums">
+                  {asset.discount.toFixed(2)}%
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#121824] border border-slate-800/80 rounded-xl p-6 shadow-lg flex flex-col h-full">
       <div className="text-sm font-bold text-white mb-6 uppercase tracking-wider">Radar de Mercado</div>
 
       <div className="flex bg-[#0b0e14] p-1 rounded-lg border border-slate-800 mb-6">
-        <button onClick={() => setActiveTab('sentimento')} className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${activeTab === 'sentimento' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>
-          <Gauge size={14} /> SENTIMENTO
-        </button>
-        <button onClick={() => setActiveTab('recompras')} className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${activeTab === 'recompras' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('recompras')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${
+            activeTab === 'recompras'
+              ? 'bg-slate-800 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
           <Target size={14} /> DESCONTOS
         </button>
-        <button onClick={() => setActiveTab('fundo')} className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${activeTab === 'fundo' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('fundo')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-md transition-all ${
+            activeTab === 'fundo'
+              ? 'bg-slate-800 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
           <ArrowDownToLine size={14} /> FUNDO ATH
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto pr-2">
-        {activeTab === 'sentimento' && (
-          <div className="flex flex-col items-center justify-center h-full pt-4">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6">Índice de Sentimento do Mercado</div>
-            
-            {isLoadingFng ? (
-              <div className="flex flex-col items-center justify-center gap-3 text-slate-500 my-12">
-                <Loader2 size={32} className="animate-spin text-slate-600" />
-                <span className="text-xs">A carregar índice oficial...</span>
-              </div>
-            ) : (
-              <div className="relative w-full max-w-[300px] mb-8">
-                <svg viewBox="0 0 300 150" className="w-full h-auto drop-shadow-lg">
-                  <path d={createArc(150, 120, 90, 180, 213)} fill="none" stroke="#ef4444" strokeWidth="12" strokeLinecap="round" />
-                  <path d={createArc(150, 120, 90, 217, 250)} fill="none" stroke="#f97316" strokeWidth="12" strokeLinecap="round" />
-                  <path d={createArc(150, 120, 90, 254, 287)} fill="none" stroke="#eab308" strokeWidth="12" strokeLinecap="round" />
-                  <path d={createArc(150, 120, 90, 291, 324)} fill="none" stroke="#84cc16" strokeWidth="12" strokeLinecap="round" />
-                  <path d={createArc(150, 120, 90, 328, 360)} fill="none" stroke="#22c55e" strokeWidth="12" strokeLinecap="round" />
-                  <circle cx={dotXFull} cy={dotYFull} r="8" fill="white" stroke={fngColor} strokeWidth="3" className="drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
-                </svg>
-
-                <div className="absolute top-[80px] left-1/2 -translate-x-1/2 text-center flex flex-col items-center">
-                  <span className="text-5xl font-black text-white leading-none tracking-tighter" style={{ textShadow: `0 0 20px ${fngColor}40` }}>{fngValue}</span>
-                  <span className="text-xs font-bold uppercase tracking-wider mt-2" style={{ color: fngColor }}>{fngText}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {activeTab === 'recompras' && (
           <div className="space-y-3">
-            {getRecompras().length === 0 ? <div className="text-center text-slate-500 text-xs py-8">Nenhum ativo com desconto superior a 3%.</div> : getRecompras().map(asset => (
-              <div key={asset.id} className="flex items-center justify-between p-3 bg-[#0b0e14] border border-slate-800 rounded-lg hover:border-slate-700 transition">
-                <div>
-                  <div className="font-bold text-slate-200 text-sm">{asset.symbol}</div>
-                  <div className="text-[10px] text-slate-500">Médio: {formatCurrency(asset.pm)}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-slate-400">Desconto PM</div>
-                  <div className="font-bold text-emerald-400 text-sm">{asset.discount.toFixed(2)}%</div>
-                </div>
+            {getRecompras().length === 0 ? (
+              <div className="text-center text-slate-500 text-xs py-8">
+                Nenhum ativo com desconto superior a 3%.
               </div>
-            ))}
+            ) : (
+              getRecompras().map(asset => (
+                <div
+                  key={asset.id}
+                  className="flex items-center justify-between p-3 bg-[#0b0e14] border border-slate-800 rounded-lg hover:border-slate-700 transition"
+                >
+                  <div>
+                    <div className="font-bold text-slate-200 text-sm">{asset.symbol}</div>
+                    <div className="text-[10px] text-slate-500">Médio: {formatCurrency(asset.pm)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-slate-400">Desconto PM</div>
+                    <div className="font-bold text-emerald-400 text-sm font-mono tabular-nums">
+                      {asset.discount.toFixed(2)}%
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 
         {activeTab === 'fundo' && (
           <div className="space-y-3">
-            {getFundoAth().length === 0 ? <div className="text-center text-slate-500 text-xs py-8">Aguardando dados...</div> : getFundoAth().map(asset => (
-              <div key={asset.id} className="flex items-center justify-between p-3 bg-[#0b0e14] border border-slate-800 rounded-lg hover:border-slate-700 transition">
-                <div>
-                  <div className="font-bold text-slate-200 text-sm">{asset.symbol}</div>
-                  <div className="text-[10px] text-slate-500">ATH: {formatCurrency(asset.ath)}</div>
+            {getFundoAth().length === 0 ? (
+              <div className="text-center text-slate-500 text-xs py-8">Aguardando dados...</div>
+            ) : (
+              getFundoAth().map(asset => (
+                <div
+                  key={asset.id}
+                  className="flex items-center justify-between p-3 bg-[#0b0e14] border border-slate-800 rounded-lg hover:border-slate-700 transition"
+                >
+                  <div>
+                    <div className="font-bold text-slate-200 text-sm">{asset.symbol}</div>
+                    <div className="text-[10px] text-slate-500">ATH: {formatCurrency(asset.ath)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-slate-400">Queda do ATH</div>
+                    <div className="font-bold text-rose-400 text-sm font-mono tabular-nums">
+                      {asset.drop.toFixed(2)}%
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs text-slate-400">Queda do ATH</div>
-                  <div className="font-bold text-rose-400 text-sm">{asset.drop.toFixed(2)}%</div>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
       </div>
